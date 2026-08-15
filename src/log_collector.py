@@ -1,33 +1,29 @@
+import time
+
 LOG_FILE = "/var/log/auth.log"
 
 
-def read_logs():
+def monitor_logs():
     with open(LOG_FILE, "r") as file:
-        return file.readlines()
+        file.seek(0, 2)
 
+        while True:
+            line = file.readline()
 
-def detect_failed_logins(logs):
-    failed_logins = []
+            if not line:
+                time.sleep(0.5)
+                continue
 
-    for log in logs:
-        if "Failed password" in log:
-            failed_logins.append(log.strip())
+            line = line.strip()
 
-    return failed_logins
+            if "Failed password" in line:
+                print("🚨 Failed login detected!")
+                print(line)
 
 
 def main():
-    logs = read_logs()
-
-    failed_logins = detect_failed_logins(logs)
-
-    print(f"Total logs: {len(logs)}")
-    print(f"Failed login attempts: {len(failed_logins)}")
-
-    print("\nFailed Login Events:")
-
-    for event in failed_logins[-10:]:
-        print(event)
+    print("CloudSentinel live monitoring started...")
+    monitor_logs()
 
 
 if __name__ == "__main__":
