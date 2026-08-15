@@ -24,25 +24,24 @@ def main():
 
     logs = collect_logs()
 
-    print("\n--- Event Analysis ---")
+    print("\n--- Security Events ---")
+
+    events = []
 
     for log in logs:
-        if detect_suspicious_event(log):
-            print("🚨 SUSPICIOUS:", log)
+        event = detect_suspicious_event(log)
 
-    brute_force, failed_count = detect_brute_force(logs)
+        if event:
+            events.append(event)
+            event.display()
 
-    print("\n--- Brute-Force Analysis ---")
+    brute_force_event = detect_brute_force(logs)
 
-    if brute_force:
-        print(
-            f"🚨 ALERT: Possible brute-force attack detected! "
-            f"Failed attempts: {failed_count}"
-        )
-    else:
-        print(
-            f"Normal: Failed authentication attempts: {failed_count}"
-        )
+    if brute_force_event:
+        events.append(brute_force_event)
+        brute_force_event.display()
+
+    print(f"\nTotal security events detected: {len(events)}")
 
 
 if __name__ == "__main__":
