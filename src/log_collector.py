@@ -1,33 +1,21 @@
-import time
-import sys
+import subprocess
 
-DEFAULT_LOG_FILE = "/var/log/auth.log"
+LOG_FILE = "/var/log/auth.log"
 
+def collect_logs():
+    result = subprocess.run(
+        ["sudo", "tail", "-n", "20", LOG_FILE],
+        capture_output=True,
+        text=True
+    )
 
-def monitor_logs(log_file):
-    with open(log_file, "r") as file:
-        file.seek(0, 2)
+    if result.returncode != 0:
+        print("Error reading security logs.")
+        return
 
-        while True:
-            line = file.readline()
-
-            if not line:
-                time.sleep(0.5)
-                continue
-
-            line = line.strip()
-
-            if "Failed password" in line:
-                print("🚨 Failed login detected!")
-                print(line)
-
-
-def main():
-    log_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_LOG_FILE
-
-    print(f"CloudSentinel monitoring: {log_file}")
-    monitor_logs(log_file)
+    print("=== CloudSentinel Security Logs ===")
+    print(result.stdout)
 
 
 if __name__ == "__main__":
-    main()
+    collect_logs()
