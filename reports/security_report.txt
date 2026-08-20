@@ -1,27 +1,16 @@
-============================================================
-           CLOUDSENTINEL SECURITY REPORT
-============================================================
+CloudSentinel Security Report
+========================================
 
-Report Generated: 2026-08-20 18:08:10.742959
+SYSTEM MONITORING
+----------------------------------------
+CPU Usage: 2.8%
+Memory Usage: 71.5%
+Disk Usage: 67.2%
 
---- SECURITY SUMMARY ---
-Total Events : 22
-HIGH         : 2
-MEDIUM       : 16
-LOW          : 4
+SECURITY EVENTS
+----------------------------------------
+No security events detected.
 
---- EVENT TYPE SUMMARY ---
-SUDO_ACTIVITY             : 16
-SECURITY_LOG              : 4
-BRUTE_FORCE               : 2
-
---- SECURITY STATUS ---
-ALERT: High severity security events detected!
-
---- HIGH SEVERITY EVENTS ---
-ID=2 | 2026-08-20 17:57:57.837835 | BRUTE_FORCE | Multiple failed login attempts detected.
-ID=1 | 2026-08-20 17:57:37.878585 | BRUTE_FORCE | Multiple failed login attempts detected.
-
-============================================================
-           END OF SECURITY REPORT
-============================================================
+SUMMARY
+----------------------------------------
+Total security events detected: 0
