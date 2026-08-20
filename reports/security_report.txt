@@ -1,17 +1,27 @@
-CloudSentinel Security Report
-========================================
+============================================================
+           CLOUDSENTINEL SECURITY REPORT
+============================================================
 
-SYSTEM MONITORING
-----------------------------------------
-CPU Usage: 1.5%
-Memory Usage: 70.8%
-Disk Usage: 67.2%
+Report Generated: 2026-08-20 18:08:10.742959
 
-SECURITY EVENTS
-----------------------------------------
-SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 56, 34, 792250), event_type='FAILED_LOGIN', severity='MEDIUM', message='2026-08-20T16:02:43.680300+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log', source='auth.log')
-SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 56, 34, 792319), event_type='FAILED_LOGIN', severity='MEDIUM', message='2026-08-20T16:03:23.759021+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log', source='auth.log')
+--- SECURITY SUMMARY ---
+Total Events : 22
+HIGH         : 2
+MEDIUM       : 16
+LOW          : 4
 
-========================================
-Total security events detected: 2
-========================================
+--- EVENT TYPE SUMMARY ---
+SUDO_ACTIVITY             : 16
+SECURITY_LOG              : 4
+BRUTE_FORCE               : 2
+
+--- SECURITY STATUS ---
+ALERT: High severity security events detected!
+
+--- HIGH SEVERITY EVENTS ---
+ID=2 | 2026-08-20 17:57:57.837835 | BRUTE_FORCE | Multiple failed login attempts detected.
+ID=1 | 2026-08-20 17:57:37.878585 | BRUTE_FORCE | Multiple failed login attempts detected.
+
+============================================================
+           END OF SECURITY REPORT
+============================================================

@@ -3,17 +3,30 @@ from detector import detect_suspicious_event
 from brute_force import detect_brute_force
 from system_monitor import get_system_metrics
 from alert_manager import process_alerts, save_alerts
+from data.database import initialize_database, save_event
 
 
 def main():
 
-    print("\n==========================================")
-    print("          CloudSentinel Security")
-    print("==========================================")
+    # ============================================================
+    # CLOUDSENTINEL START
+    # ============================================================
 
-    # ----------------------------------------
-    # 1. System Monitoring
-    # ----------------------------------------
+    print("\n==============================================")
+    print("          CloudSentinel Security")
+    print("==============================================")
+
+    # ============================================================
+    # 0. INITIALIZE DATABASE
+    # ============================================================
+
+    print("\n--- Database Initialization ---")
+
+    initialize_database()
+
+    # ============================================================
+    # 1. SYSTEM MONITORING
+    # ============================================================
 
     print("\n--- System Monitoring ---")
 
@@ -23,9 +36,9 @@ def main():
     print(f"Memory Usage: {metrics['memory_percent']}%")
     print(f"Disk Usage: {metrics['disk_percent']}%")
 
-    # ----------------------------------------
-    # 2. Collect Security Logs
-    # ----------------------------------------
+    # ============================================================
+    # 2. SECURITY LOG COLLECTION
+    # ============================================================
 
     print("\n--- Security Log Collection ---")
 
@@ -37,9 +50,9 @@ def main():
 
     print(f"Collected {len(logs)} log entries.")
 
-    # ----------------------------------------
-    # 3. Suspicious Event Detection
-    # ----------------------------------------
+    # ============================================================
+    # 3. SUSPICIOUS EVENT DETECTION
+    # ============================================================
 
     print("\n--- Security Events ---")
 
@@ -51,17 +64,21 @@ def main():
 
         if event is not None:
 
+            # Add event to current run
             events.append(event)
 
+            # Save event permanently to database
+            save_event(event)
+
+            # Display event
             try:
                 event.display()
-
             except AttributeError:
                 print(event)
 
-    # ----------------------------------------
-    # 4. Brute Force Detection
-    # ----------------------------------------
+    # ============================================================
+    # 4. BRUTE FORCE DETECTION
+    # ============================================================
 
     print("\n--- Brute Force Detection ---")
 
@@ -69,20 +86,25 @@ def main():
 
     if brute_force_event is not None:
 
+        # Add brute-force event to current run
         events.append(brute_force_event)
 
+        # Save brute-force event permanently
+        save_event(brute_force_event)
+
+        # Display brute-force event
         try:
             brute_force_event.display()
-
         except AttributeError:
             print(brute_force_event)
 
     else:
+
         print("No brute-force attack detected.")
 
-    # ----------------------------------------
-    # 5. Save Security Report
-    # ----------------------------------------
+    # ============================================================
+    # 5. SAVE SECURITY REPORT
+    # ============================================================
 
     print("\n--- Saving Security Report ---")
 
@@ -91,7 +113,10 @@ def main():
         report.write("CloudSentinel Security Report\n")
         report.write("=" * 40 + "\n\n")
 
+        # --------------------------------------------------------
         # System Information
+        # --------------------------------------------------------
+
         report.write("SYSTEM MONITORING\n")
         report.write("-" * 40 + "\n")
 
@@ -109,42 +134,53 @@ def main():
 
         report.write("\n")
 
+        # --------------------------------------------------------
         # Security Events
+        # --------------------------------------------------------
+
         report.write("SECURITY EVENTS\n")
         report.write("-" * 40 + "\n")
 
-        for event in events:
+        if events:
 
-            report.write(str(event))
-            report.write("\n")
+            for event in events:
+
+                report.write(str(event))
+                report.write("\n")
+
+        else:
+
+            report.write("No security events detected.\n")
 
         report.write("\n")
 
+        # --------------------------------------------------------
         # Final Count
-        report.write("=" * 40 + "\n")
+        # --------------------------------------------------------
+
+        report.write("SUMMARY\n")
+        report.write("-" * 40 + "\n")
 
         report.write(
             f"Total security events detected: {len(events)}\n"
         )
 
-        report.write("=" * 40 + "\n")
-
     print("Security report saved to:")
     print("reports/security_report.txt")
 
-    # ----------------------------------------
-    # 6. Final Result
-    # ----------------------------------------
+    # ============================================================
+    # 6. FINAL RESULT
+    # ============================================================
 
-    print("\n==========================================")
+    print("\n==============================================")
     print(
         f"Total security events detected: {len(events)}"
     )
-    print("==========================================")
+    print("==============================================")
 
-    # ----------------------------------------
-    # 7. Automated Security Alerts
-    # ----------------------------------------
+    # ============================================================
+    # 7. AUTOMATED SECURITY ALERTS
+    # ============================================================
 
     print("\n--- Security Alerts ---")
 
@@ -164,6 +200,10 @@ def main():
 
         print("No security alerts generated.")
 
+
+# ================================================================
+# PROGRAM ENTRY POINT
+# ================================================================
 
 if __name__ == "__main__":
     main()
