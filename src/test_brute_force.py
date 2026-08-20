@@ -1,20 +1,28 @@
 from brute_force import detect_brute_force
 
 
+# Fake failed-login logs for testing
 test_logs = [
-    "Failed password for invalid user admin",
-    "Failed password for invalid user test",
-    "Failed password for invalid user attacker",
-    "Normal user session opened"
+    "Failed password for user krishangi",
+    "Failed password for user krishangi",
+    "Failed password for user krishangi",
+    "Failed password for user krishangi",
+    "Failed password for user krishangi",
+    "Failed password for user krishangi",
 ]
 
 
-detected, count = detect_brute_force(test_logs)
+print("=== CloudSentinel Brute Force Test ===")
 
-print("=== CloudSentinel Brute-Force Test ===")
-print(f"Failed authentication attempts: {count}")
+event = detect_brute_force(test_logs)
 
-if detected:
-    print("🚨 ALERT: Possible brute-force attack detected!")
+if event is not None:
+    print("\n[ALERT] Brute-force attack detected!")
+
+    try:
+        event.display()
+    except AttributeError:
+        print(event)
+
 else:
-    print("NORMAL: No brute-force attack detected.")
+    print("\n[OK] No brute-force attack detected.")
