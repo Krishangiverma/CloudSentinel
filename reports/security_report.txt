@@ -1,51 +1,19 @@
-
-========================================
-          CloudSentinel Security
+CloudSentinel Security Report
 ========================================
 
---- System Monitoring ---
-CPU Usage: 1.0%
-Memory Usage: 70.8%
+SYSTEM MONITORING
+----------------------------------------
+CPU Usage: 1.5%
+Memory Usage: 71.1%
 Disk Usage: 67.2%
 
---- Security Log Collection ---
-=== CloudSentinel Security Logs ===
-2026-08-20T15:32:20.310649+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/whoami 
-2026-08-20T15:32:20.315243+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
-2026-08-20T15:35:51.871258+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
-2026-08-20T15:35:51.874056+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/whoami 
-2026-08-20T15:35:51.875186+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
-2026-08-20T15:36:47.703115+00:00 ubuntu unix_chkpwd[8555]: password check failed for user (krishangi)
-2026-08-20T15:36:47.703908+00:00 ubuntu sudo: pam_unix(sudo:auth): authentication failure; logname=krishangi uid=1000 euid=0 tty=/dev/pts/0 ruser=krishangi rhost=  user=krishangi
-2026-08-20T15:36:56.920288+00:00 ubuntu unix_chkpwd[8557]: password check failed for user (krishangi)
-2026-08-20T15:37:01.349545+00:00 ubuntu unix_chkpwd[8558]: password check failed for user (krishangi)
-2026-08-20T15:37:49.715830+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
-2026-08-20T15:37:49.716144+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
-2026-08-20T15:37:49.719994+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
-2026-08-20T15:40:56.495975+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
-2026-08-20T15:40:56.501953+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
-2026-08-20T15:40:56.504803+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
-2026-08-20T15:47:38.135840+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
-2026-08-20T15:47:38.138684+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
-2026-08-20T15:47:38.139790+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
-2026-08-20T15:48:58.302618+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
-2026-08-20T15:48:58.303075+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
-
-Collected 20 log entries.
-
---- Security Events ---
-[MEDIUM] FAILED_LOGIN | 2026-08-20 15:48:58.308700 | 2026-08-20T15:36:47.703115+00:00 ubuntu unix_chkpwd[8555]: password check failed for user (krishangi)
-[MEDIUM] FAILED_LOGIN | 2026-08-20 15:48:58.308748 | 2026-08-20T15:36:47.703908+00:00 ubuntu sudo: pam_unix(sudo:auth): authentication failure; logname=krishangi uid=1000 euid=0 tty=/dev/pts/0 ruser=krishangi rhost=  user=krishangi
-[MEDIUM] FAILED_LOGIN | 2026-08-20 15:48:58.308758 | 2026-08-20T15:36:56.920288+00:00 ubuntu unix_chkpwd[8557]: password check failed for user (krishangi)
-[MEDIUM] FAILED_LOGIN | 2026-08-20 15:48:58.308762 | 2026-08-20T15:37:01.349545+00:00 ubuntu unix_chkpwd[8558]: password check failed for user (krishangi)
-
---- Brute Force Detection ---
-[HIGH] BRUTE_FORCE | 2026-08-20 15:48:58.308785 | 4 failed authentication attempts detected
-
---- Saving Security Report ---
-Security report saved to:
-reports/security_report.txt
+SECURITY EVENTS
+----------------------------------------
+SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 18, 0, 164651), event_type='FAILED_LOGIN', severity='MEDIUM', message='2026-08-20T16:01:06.595903+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep Failed password /var/log/auth.log', source='auth.log')
+SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 18, 0, 164718), event_type='FAILED_LOGIN', severity='MEDIUM', message='2026-08-20T16:02:43.680300+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log', source='auth.log')
+SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 18, 0, 164734), event_type='FAILED_LOGIN', severity='MEDIUM', message='2026-08-20T16:03:23.759021+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log', source='auth.log')
+SecurityEvent(timestamp=datetime.datetime(2026, 8, 20, 16, 18, 0, 164787), event_type='BRUTE_FORCE', severity='HIGH', message='3 failed authentication attempts detected', source='auth.log')
 
 ========================================
-Total security events detected: 5
+Total security events detected: 4
 ========================================
