@@ -1,0 +1,5 @@
+CloudSentinel Security Alerts
+==================================================
+
+[WARNING] 2026-08-20 16:56:34 | SEVERITY: MEDIUM | TYPE: FAILED_LOGIN | 2026-08-20T16:02:43.680300+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log
+[WARNING] 2026-08-20 16:56:34 | SEVERITY: MEDIUM | TYPE: FAILED_LOGIN | 2026-08-20T16:03:23.759021+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/grep -E sshd.*Failed password /var/log/auth.log

@@ -2,13 +2,14 @@ from log_collector import collect_logs
 from detector import detect_suspicious_event
 from brute_force import detect_brute_force
 from system_monitor import get_system_metrics
+from alert_manager import process_alerts, save_alerts
 
 
 def main():
 
-    print("\n========================================")
+    print("\n==========================================")
     print("          CloudSentinel Security")
-    print("========================================")
+    print("==========================================")
 
     # ----------------------------------------
     # 1. System Monitoring
@@ -76,6 +77,9 @@ def main():
         except AttributeError:
             print(brute_force_event)
 
+    else:
+        print("No brute-force attack detected.")
+
     # ----------------------------------------
     # 5. Save Security Report
     # ----------------------------------------
@@ -87,30 +91,42 @@ def main():
         report.write("CloudSentinel Security Report\n")
         report.write("=" * 40 + "\n\n")
 
-        # System information
+        # System Information
         report.write("SYSTEM MONITORING\n")
         report.write("-" * 40 + "\n")
-        report.write(f"CPU Usage: {metrics['cpu_percent']}%\n")
-        report.write(f"Memory Usage: {metrics['memory_percent']}%\n")
-        report.write(f"Disk Usage: {metrics['disk_percent']}%\n")
+
+        report.write(
+            f"CPU Usage: {metrics['cpu_percent']}%\n"
+        )
+
+        report.write(
+            f"Memory Usage: {metrics['memory_percent']}%\n"
+        )
+
+        report.write(
+            f"Disk Usage: {metrics['disk_percent']}%\n"
+        )
 
         report.write("\n")
 
-        # Security events
+        # Security Events
         report.write("SECURITY EVENTS\n")
         report.write("-" * 40 + "\n")
 
         for event in events:
+
             report.write(str(event))
             report.write("\n")
 
         report.write("\n")
 
-        # Final count
+        # Final Count
         report.write("=" * 40 + "\n")
+
         report.write(
             f"Total security events detected: {len(events)}\n"
         )
+
         report.write("=" * 40 + "\n")
 
     print("Security report saved to:")
@@ -120,9 +136,33 @@ def main():
     # 6. Final Result
     # ----------------------------------------
 
-    print("\n========================================")
-    print(f"Total security events detected: {len(events)}")
-    print("========================================")
+    print("\n==========================================")
+    print(
+        f"Total security events detected: {len(events)}"
+    )
+    print("==========================================")
+
+    # ----------------------------------------
+    # 7. Automated Security Alerts
+    # ----------------------------------------
+
+    print("\n--- Security Alerts ---")
+
+    alerts = process_alerts(events)
+
+    if alerts:
+
+        for alert in alerts:
+            print(alert)
+
+        save_alerts(alerts)
+
+        print("\nSecurity alerts saved to:")
+        print("reports/security_alerts.txt")
+
+    else:
+
+        print("No security alerts generated.")
 
 
 if __name__ == "__main__":
