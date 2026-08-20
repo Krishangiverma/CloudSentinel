@@ -13,15 +13,23 @@ class SecurityEvent:
     severity: str
     message: str
     source: str
+    ip_address: str = "N/A"
 
     def __str__(self):
         return (
-            f"[{self.timestamp}] "
-            f"{self.severity} | "
+            f"[{self.severity}] "
             f"{self.event_type} | "
+            f"{self.timestamp} | "
             f"{self.source} | "
+            f"IP={self.ip_address} | "
             f"{self.message}"
         )
+
+    def display(self):
+        """
+        Display the security event in a readable format.
+        """
+        print(self)
 
 
 # Test event
@@ -31,8 +39,9 @@ if __name__ == "__main__":
         event_type="TEST_EVENT",
         severity="LOW",
         message="CloudSentinel SecurityEvent model is working.",
-        source="CloudSentinel"
+        source="CloudSentinel",
+        ip_address="127.0.0.1"
     )
 
     print("=== SecurityEvent Test ===")
-    print(event)
+    event.display()

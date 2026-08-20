@@ -1,45 +1,13 @@
-from dataclasses import dataclass
-from datetime import datetime
+"""
+Compatibility module for CloudSentinel.
 
+The main SecurityEvent model is defined in:
+src/models/event.py
 
-SEVERITY_LEVELS = {
-    "INFO": 1,
-    "LOW": 2,
-    "MEDIUM": 3,
-    "HIGH": 4,
-    "CRITICAL": 5
-}
+This module re-exports it so older imports such as
+'from event import SecurityEvent' continue to work.
+"""
 
+from models.event import SecurityEvent
 
-@dataclass
-class SecurityEvent:
-    timestamp: datetime
-    event_type: str
-    severity: str
-    message: str
-    source: str = "auth.log"
-
-    def __post_init__(self):
-        if self.severity not in SEVERITY_LEVELS:
-            raise ValueError(
-                f"Invalid severity: {self.severity}"
-            )
-
-    def display(self):
-        print(
-            f"[{self.severity}] "
-            f"{self.event_type} | "
-            f"{self.timestamp} | "
-            f"{self.message}"
-        )
-
-
-if __name__ == "__main__":
-    event = SecurityEvent(
-        timestamp=datetime.now(),
-        event_type="FAILED_LOGIN",
-        severity="MEDIUM",
-        message="Failed authentication attempt detected"
-    )
-
-    event.display()
+__all__ = ["SecurityEvent"]

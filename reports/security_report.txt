@@ -1,16 +1,57 @@
-CloudSentinel Security Report
-========================================
+============================================================
+           CLOUDSENTINEL SECURITY REPORT
+============================================================
 
-SYSTEM MONITORING
-----------------------------------------
-CPU Usage: 2.8%
-Memory Usage: 71.5%
-Disk Usage: 67.2%
+SECURITY EVENT SUMMARY
+------------------------------------------------------------
+Total Events       : 25
+HIGH Events        : 5
+MEDIUM Events      : 16
+LOW Events         : 4
+Brute-Force Events : 5
 
-SECURITY EVENTS
-----------------------------------------
-No security events detected.
+RECENT SECURITY EVENTS
+------------------------------------------------------------
+[ID 25] [HIGH] BRUTE_FORCE | IP=192.168.1.50 | auth.log
+    2026-08-20 20:40:35.161892
+    Brute-force attack detected from 192.168.1.50: 3 failed attempts
 
-SUMMARY
-----------------------------------------
-Total security events detected: 0
+[ID 24] [HIGH] BRUTE_FORCE | IP=192.168.1.50 | auth.log
+    2026-08-20 20:32:57.719418
+    Brute-force attack detected from 192.168.1.50: 3 failed attempts
+
+[ID 23] [HIGH] BRUTE_FORCE | IP=N/A | CloudSentinel
+    2026-08-20 19:56:01.155758
+    Multiple failed login attempts detected.
+
+[ID 22] [MEDIUM] SUDO_ACTIVITY | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.975904
+    2026-08-20T17:44:08.432862+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
+
+[ID 21] [MEDIUM] SUDO_ACTIVITY | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.972492
+    2026-08-20T17:44:08.432816+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
+
+[ID 20] [MEDIUM] SUDO_ACTIVITY | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.970227
+    2026-08-20T17:44:08.427223+00:00 ubuntu sudo: pam_unix(sudo:session): session opened for user root(uid=0) by krishangi(uid=1000)
+
+[ID 19] [LOW] SECURITY_LOG | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.968186
+    2026-08-20T17:30:01.339372+00:00 ubuntu CRON[9737]: pam_unix(cron:session): session closed for user root
+
+[ID 18] [LOW] SECURITY_LOG | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.965418
+    2026-08-20T17:30:01.334302+00:00 ubuntu CRON[9737]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+
+[ID 17] [MEDIUM] SUDO_ACTIVITY | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.964024
+    2026-08-20T17:23:14.440664+00:00 ubuntu sudo: pam_unix(sudo:session): session closed for user root
+
+[ID 16] [MEDIUM] SUDO_ACTIVITY | IP=N/A | Ubuntu auth.log
+    2026-08-20 18:03:30.962473
+    2026-08-20T17:23:14.439279+00:00 ubuntu sudo: krishangi : TTY=/dev/pts/0 ; PWD=/home/krishangi/CloudSentinel ; USER=root ; COMMAND=/usr/bin/tail -n 20 /var/log/auth.log
+
+============================================================
+End of CloudSentinel Security Report
+============================================================

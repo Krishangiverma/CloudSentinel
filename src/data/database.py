@@ -1,9 +1,11 @@
 import sqlite3
 from pathlib import Path
 
+from config.settings import DATABASE_PATH
+
 
 # Database location
-DB_PATH = Path("data/cloudsentinel.db")
+DB_PATH = Path(DATABASE_PATH)
 
 
 def initialize_database():
@@ -14,7 +16,6 @@ def initialize_database():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     connection = sqlite3.connect(DB_PATH)
-
     cursor = connection.cursor()
 
     cursor.execute("""
@@ -24,7 +25,8 @@ def initialize_database():
             event_type TEXT NOT NULL,
             severity TEXT NOT NULL,
             message TEXT NOT NULL,
-            source TEXT
+            source TEXT,
+            ip_address TEXT DEFAULT 'N/A'
         )
     """)
 
@@ -39,24 +41,28 @@ def save_event(event):
     Save a SecurityEvent object into the database.
     """
 
-    connection = sqlite3.connect(DB_PATH)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
 
     cursor.execute("""
         INSERT INTO security_events
-        (timestamp, event_type, severity, message, source)
-        VALUES (?, ?, ?, ?, ?)
+        (timestamp, event_type, severity, message, source, ip_address)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         str(event.timestamp),
         event.event_type,
         event.severity,
         event.message,
-        event.source
+        event.source,
+        getattr(event, "ip_address", "N/A")
     ))
 
     connection.commit()
     connection.close()
+
+    print("Event saved to CloudSentinel database.")
 
 
 def get_all_events():
@@ -65,11 +71,10 @@ def get_all_events():
     """
 
     connection = sqlite3.connect(DB_PATH)
-
     cursor = connection.cursor()
 
     cursor.execute("""
-        SELECT id, timestamp, event_type, severity, message, source
+        SELECT id, timestamp, event_type, severity, message, source, ip_address
         FROM security_events
         ORDER BY id DESC
     """)
@@ -83,3 +88,10 @@ def get_all_events():
 
 if __name__ == "__main__":
     initialize_database()
+
+    print("\n=== Recent CloudSentinel Events ===")
+
+    events = get_all_events()
+
+    for event in events[:5]:
+        print(event)
