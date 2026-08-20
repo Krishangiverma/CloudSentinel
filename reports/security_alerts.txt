@@ -1,7 +1,8 @@
 CloudSentinel Security Alerts
 ======================================================================
 
-[CRITICAL] ALERT-20260820195508111873 | 2026-08-20T19:55:08.111893 | SEVERITY: CRITICAL | RISK: 90 | TYPE: BRUTE_FORCE | Multiple failed SSH login attempts detected
+[CRITICAL] ALERT-20260820200932541566 | 2026-08-20T20:09:32.541570 | SEVERITY: HIGH | RISK: 90 | TYPE: BRUTE_FORCE | 6 failed authentication attempts detected
+[MEDIUM] ALERT-20260820200932541573 | 2026-08-20T20:09:32.541575 | SEVERITY: MEDIUM | RISK: 50 | TYPE: FAILED_LOGIN | Failed authentication attempt detected
 
 ======================================================================
-Total alerts: 1
+Total alerts: 2
