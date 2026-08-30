@@ -1,2 +1,6 @@
 [2026-08-30 16:10:10] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected
 [2026-08-30 16:11:22] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected
+[2026-08-30 16:16:19] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected
+[2026-08-30 16:16:48] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected
+[2026-08-30 16:19:52] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected
+[2026-08-30 16:20:15] Alert Type: BRUTE_FORCE | Severity: HIGH | IP: 192.168.1.100 | Message: Multiple failed login attempts detected

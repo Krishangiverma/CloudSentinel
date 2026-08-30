@@ -1,31 +1,85 @@
 """
 CloudSentinel Notification Manager
 
-Responsible for displaying security alerts
-and logging notifications.
+Responsible for displaying security alerts,
+logging notifications, preventing duplicates,
+and applying alert cooldowns.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 LOG_FILE = "logs/notifications.log"
 
+# Cooldown period for repeated alerts
+COOLDOWN_SECONDS = 60
+
+# Store the last notification time for each alert
+_last_notification_times = {}
+
+
+def _get_alert_key(alert):
+    """
+    Create a unique key for an alert.
+    """
+
+    return (
+        alert.get("event_type", alert.get("alert_type", "UNKNOWN")),
+        alert.get("severity", "UNKNOWN"),
+        alert.get(
+            "ip_address",
+            alert.get("source_ip", "Unknown")
+        ),
+        alert.get("message", "No message provided"),
+    )
+
 
 def send_notification(alert):
     """
-    Display a security alert and save it to the notification log.
+    Display and log a security alert.
+
+    Repeated alerts are ignored during the cooldown period.
     """
 
     if not isinstance(alert, dict):
         print("[ERROR] Invalid alert format.")
         return False
 
+    alert_key = _get_alert_key(alert)
+
+    current_time = datetime.now()
+
+    # Check cooldown
+    last_time = _last_notification_times.get(alert_key)
+
+    if last_time is not None:
+
+        elapsed_time = current_time - last_time
+
+        if elapsed_time < timedelta(seconds=COOLDOWN_SECONDS):
+
+            remaining = COOLDOWN_SECONDS - elapsed_time.total_seconds()
+
+            print(
+                f"[INFO] Alert cooldown active. "
+                f"Notification skipped "
+                f"({remaining:.1f}s remaining)."
+            )
+
+            return False
+
+    # Update last notification time
+    _last_notification_times[alert_key] = current_time
+
     alert_type = alert.get(
         "event_type",
         alert.get("alert_type", "UNKNOWN")
     )
 
-    severity = alert.get("severity", "UNKNOWN")
+    severity = alert.get(
+        "severity",
+        "UNKNOWN"
+    )
 
     message = alert.get(
         "message",
@@ -37,7 +91,7 @@ def send_notification(alert):
         alert.get("source_ip", "Unknown")
     )
 
-    timestamp = datetime.now().strftime(
+    timestamp = current_time.strftime(
         "%Y-%m-%d %H:%M:%S"
     )
 
@@ -62,13 +116,18 @@ def send_notification(alert):
     print("=" * 60)
     print()
 
-    # Save notification to log file
+    # Save notification to log
     try:
+
         with open(LOG_FILE, "a") as log_file:
             log_file.write(notification + "\n")
 
     except OSError as error:
-        print(f"[ERROR] Could not write notification log: {error}")
+
+        print(
+            f"[ERROR] Could not write notification log: {error}"
+        )
+
         return False
 
     return True
@@ -91,11 +150,29 @@ if __name__ == "__main__":
         "ip_address": "192.168.1.100"
     }
 
-    print("[TEST] Sending notification...")
+    print("=" * 60)
+    print("CloudSentinel Notification Cooldown Test")
+    print("=" * 60)
 
-    result = send_notification(test_alert)
+    print("\n[TEST 1] First notification:")
 
-    if result:
-        print("[TEST] Notification sent and logged successfully.")
-    else:
-        print("[TEST] Notification failed.")
+    result1 = send_notification(test_alert)
+
+    print(
+        f"Result: "
+        f"{'SENT' if result1 else 'SKIPPED'}"
+    )
+
+    print("\n[TEST 2] Immediate duplicate:")
+
+    result2 = send_notification(test_alert)
+
+    print(
+        f"Result: "
+        f"{'SENT' if result2 else 'SKIPPED'}"
+    )
+
+    print("\nCooldown configured for:")
+    print(f"{COOLDOWN_SECONDS} seconds")
+
+    print("\n" + "=" * 60)
