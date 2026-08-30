@@ -6,6 +6,7 @@ and storing them in the CloudSentinel database.
 """
 
 from src.data.database import save_alert
+from src.notification_manager import send_notification
 
 
 class AlertManager:
@@ -47,7 +48,8 @@ class AlertManager:
 
     def process_alert(self, event):
         """
-        Create an alert and save it to the database.
+        Create an alert, save it to the database,
+        and send a notification.
         """
 
         alert = self.create_alert(event)
@@ -56,28 +58,21 @@ class AlertManager:
 
         self.alert_count += 1
 
+        send_notification(alert)
+
         return alert
 
     def process_event(self, event):
         """
-        Backward-compatible method.
-
-        Older parts of CloudSentinel may call process_event().
+        Process a security event and generate an alert.
         """
 
         return self.process_alert(event)
 
 
-# ---------------------------------------------------------
-# Global Alert Manager
-# ---------------------------------------------------------
-
+# Global AlertManager instance
 manager = AlertManager()
 
-
-# ---------------------------------------------------------
-# Public Functions
-# ---------------------------------------------------------
 
 def process_alert(event):
     """
@@ -95,52 +90,33 @@ def process_event(event):
     return manager.process_event(event)
 
 
-# ---------------------------------------------------------
-# Test
-# ---------------------------------------------------------
-
 if __name__ == "__main__":
 
     print("=" * 60)
-    print("          CloudSentinel Alert Manager Test")
+    print("CloudSentinel Alert Manager Test")
     print("=" * 60)
 
     test_event = {
         "event_type": "BRUTE_FORCE",
         "severity": "HIGH",
-        "message": (
-            "Brute-force attack detected from "
-            "192.168.1.50: 5 failed attempts"
-        ),
-        "ip_address": "192.168.1.50",
+        "message": "Multiple failed login attempts detected",
+        "ip_address": "192.168.1.100",
     }
 
-    print()
-    print("[STEP 1] Creating alert...")
+    print("\n[STEP 1] Creating alert...")
 
-    try:
-        alert = manager.create_alert(test_event)
+    alert = manager.create_alert(test_event)
 
-        print("[OK] Alert created.")
-        print()
-        print("Alert details:")
-        print(f"Event Type : {alert['event_type']}")
-        print(f"Severity   : {alert['severity']}")
-        print(f"Message    : {alert['message']}")
-        print(f"IP Address : {alert['ip_address']}")
+    print(f"Event Type : {alert['event_type']}")
+    print(f"Severity   : {alert['severity']}")
+    print(f"Message    : {alert['message']}")
+    print(f"IP Address : {alert['ip_address']}")
 
-        print()
-        print("[STEP 2] Saving alert to database...")
+    print("\n[STEP 2] Saving alert and sending notification...")
 
-        saved_alert = manager.process_alert(test_event)
+    saved_alert = manager.process_alert(test_event)
 
-        print("[OK] Alert saved.")
-        print()
-        print("=" * 60)
-        print("          Alert Manager Test Completed")
-        print("=" * 60)
+    print("\n[STEP 3] Alert processed successfully.")
+    print(f"Total Alerts Processed: {manager.alert_count}")
 
-    except Exception as error:
-        print()
-        print("[ERROR] Alert Manager test failed.")
-        print(f"Reason: {error}")
+    print("\n" + "=" * 60)
