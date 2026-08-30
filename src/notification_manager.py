@@ -7,9 +7,13 @@ and applying alert cooldowns.
 """
 
 from datetime import datetime, timedelta
+import os
 
 
 LOG_FILE = "logs/notifications.log"
+
+# Automatically create logs directory if it does not exist
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 # Cooldown period for repeated alerts
 COOLDOWN_SECONDS = 60
@@ -46,24 +50,22 @@ def send_notification(alert):
         return False
 
     alert_key = _get_alert_key(alert)
-
     current_time = datetime.now()
 
     # Check cooldown
     last_time = _last_notification_times.get(alert_key)
 
     if last_time is not None:
-
         elapsed_time = current_time - last_time
 
         if elapsed_time < timedelta(seconds=COOLDOWN_SECONDS):
-
-            remaining = COOLDOWN_SECONDS - elapsed_time.total_seconds()
+            remaining = (
+                COOLDOWN_SECONDS - elapsed_time.total_seconds()
+            )
 
             print(
-                f"[INFO] Alert cooldown active. "
-                f"Notification skipped "
-                f"({remaining:.1f}s remaining)."
+                "[INFO] Alert cooldown active. "
+                f"Notification skipped ({remaining:.1f}s remaining)."
             )
 
             return False
@@ -91,43 +93,32 @@ def send_notification(alert):
         alert.get("source_ip", "Unknown")
     )
 
-    timestamp = current_time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+    timestamp = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    notification = (
-        f"[{timestamp}] "
-        f"Alert Type: {alert_type} | "
-        f"Severity: {severity} | "
-        f"IP: {ip_address} | "
-        f"Message: {message}"
-    )
-
-    # Console notification
+    # Display notification
     print()
     print("=" * 60)
     print("CLOUDSENTINEL SECURITY ALERT")
     print("=" * 60)
-    print(f"Time       : {timestamp}")
-    print(f"Alert Type : {alert_type}")
-    print(f"Severity   : {severity}")
-    print(f"IP Address : {ip_address}")
-    print(f"Message    : {message}")
+    print(f"Time        : {timestamp}")
+    print(f"Alert Type  : {alert_type}")
+    print(f"Severity    : {severity}")
+    print(f"IP Address  : {ip_address}")
+    print(f"Message     : {message}")
     print("=" * 60)
-    print()
 
-    # Save notification to log
+    # Log notification
     try:
-
         with open(LOG_FILE, "a") as log_file:
-            log_file.write(notification + "\n")
-
+            log_file.write(
+                f"[{timestamp}] "
+                f"Alert Type: {alert_type} | "
+                f"Severity: {severity} | "
+                f"IP: {ip_address} | "
+                f"Message: {message}\n"
+            )
     except OSError as error:
-
-        print(
-            f"[ERROR] Could not write notification log: {error}"
-        )
-
+        print(f"[ERROR] Failed to write notification log: {error}")
         return False
 
     return True
@@ -147,11 +138,11 @@ if __name__ == "__main__":
         "event_type": "BRUTE_FORCE",
         "severity": "HIGH",
         "message": "Multiple failed login attempts detected",
-        "ip_address": "192.168.1.100"
+        "ip_address": "192.168.1.100",
     }
 
     print("=" * 60)
-    print("CloudSentinel Notification Cooldown Test")
+    print("CloudSentinel Notification Manager Test")
     print("=" * 60)
 
     print("\n[TEST 1] First notification:")
@@ -159,8 +150,7 @@ if __name__ == "__main__":
     result1 = send_notification(test_alert)
 
     print(
-        f"Result: "
-        f"{'SENT' if result1 else 'SKIPPED'}"
+        f"Result: {'SENT' if result1 else 'SKIPPED'}"
     )
 
     print("\n[TEST 2] Immediate duplicate:")
@@ -168,8 +158,7 @@ if __name__ == "__main__":
     result2 = send_notification(test_alert)
 
     print(
-        f"Result: "
-        f"{'SENT' if result2 else 'SKIPPED'}"
+        f"Result: {'SENT' if result2 else 'SKIPPED'}"
     )
 
     print("\nCooldown configured for:")
