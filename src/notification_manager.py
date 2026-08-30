@@ -1,15 +1,19 @@
 """
 CloudSentinel Notification Manager
 
-Responsible for displaying security alerts.
+Responsible for displaying security alerts
+and logging notifications.
 """
 
 from datetime import datetime
 
 
+LOG_FILE = "logs/notifications.log"
+
+
 def send_notification(alert):
     """
-    Display a security alert notification in the console.
+    Display a security alert and save it to the notification log.
     """
 
     if not isinstance(alert, dict):
@@ -37,6 +41,15 @@ def send_notification(alert):
         "%Y-%m-%d %H:%M:%S"
     )
 
+    notification = (
+        f"[{timestamp}] "
+        f"Alert Type: {alert_type} | "
+        f"Severity: {severity} | "
+        f"IP: {ip_address} | "
+        f"Message: {message}"
+    )
+
+    # Console notification
     print()
     print("=" * 60)
     print("CLOUDSENTINEL SECURITY ALERT")
@@ -49,6 +62,15 @@ def send_notification(alert):
     print("=" * 60)
     print()
 
+    # Save notification to log file
+    try:
+        with open(LOG_FILE, "a") as log_file:
+            log_file.write(notification + "\n")
+
+    except OSError as error:
+        print(f"[ERROR] Could not write notification log: {error}")
+        return False
+
     return True
 
 
@@ -56,6 +78,7 @@ def notify_alert(alert):
     """
     Wrapper for sending an alert notification.
     """
+
     return send_notification(alert)
 
 
@@ -73,6 +96,6 @@ if __name__ == "__main__":
     result = send_notification(test_alert)
 
     if result:
-        print("[TEST] Notification sent successfully.")
+        print("[TEST] Notification sent and logged successfully.")
     else:
         print("[TEST] Notification failed.")
