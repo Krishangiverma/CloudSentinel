@@ -1,34 +1,62 @@
-from log_collector import collect_logs
-from detector import analyze_logs
+"""
+CloudSentinel Main Application
+
+Main entry point for the CloudSentinel security monitoring system.
+"""
+
+from src.alert_manager import process_alert
 
 
-def run_cloudsentinel():
-    print("===================================")
-    print("      CloudSentinel Security Scan")
-    print("===================================")
+def main():
+    print("=" * 60)
+    print("              CloudSentinel Security Monitor")
+    print("=" * 60)
 
-    # Step 1: Collect logs from multiple sources
-    logs = collect_logs()
+    print()
+    print("[INFO] CloudSentinel started.")
+    print("[INFO] Alert Manager loaded successfully.")
+    print()
 
-    print("\n=== Detection Engine ===")
+    # ---------------------------------------------------------
+    # Test security event
+    # ---------------------------------------------------------
 
-    # Step 2: Analyze collected logs
-    events = analyze_logs(logs)
+    test_event = {
+        "event_type": "BRUTE_FORCE",
+        "severity": "HIGH",
+        "message": "Brute-force attack detected from 192.168.1.50: 5 failed attempts",
+        "ip_address": "192.168.1.50"
+    }
 
-    # Step 3: Display detected events
-    if events:
-        print(f"\nDetected {len(events)} suspicious events:\n")
+    print("-" * 60)
+    print("[STEP 1] Processing security event...")
+    print("-" * 60)
 
-        for event in events:
-            event.display()
+    try:
+        alert = process_alert(test_event)
 
-    else:
-        print("No suspicious events detected.")
+        print("[OK] Security event processed.")
 
-    print("\n===================================")
-    print("       Scan Completed")
-    print("===================================")
+        if alert:
+            print("[OK] Security alert created and saved.")
+            print()
+            print("Alert Details:")
+            print(f"  Event Type : {alert.event_type}")
+            print(f"  Severity   : {alert.severity}")
+            print(f"  Message    : {alert.message}")
+            print(f"  IP Address : {alert.ip_address}")
+        else:
+            print("[INFO] No alert was created.")
+
+    except Exception as error:
+        print("[ERROR] Failed to process security event.")
+        print(f"[ERROR] {error}")
+
+    print()
+    print("=" * 60)
+    print("          CloudSentinel Main Test Completed")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    run_cloudsentinel()
+    main()
