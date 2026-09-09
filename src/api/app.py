@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # ============================================================
 
 from src.data.database import get_all_events, save_event
+from src.analyzers.risk_engine import analyze_event_risk
 
 
 # ============================================================
@@ -121,7 +122,9 @@ def get_events():
                 "severity": event[3],
                 "message": event[4],
                 "source": event[5],
-                "ip_address": event[6]
+                "ip_address": event[6],
+                        "risk_score": analyze_event_risk({"severity": event[3], "event_type": event[2]})["risk_score"],
+                        "risk_level": analyze_event_risk({"severity": event[3], "event_type": event[2]})["risk_level"]
             })
 
         return jsonify({
@@ -145,45 +148,67 @@ def get_events():
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     """
-    Return basic statistics about security events.
+    Return security event statistics including risk analysis.
     """
-
     try:
-
         events = get_all_events()
 
         total_events = len(events)
-
         severity_count = {}
-
         event_type_count = {}
 
-        # Process every database event
-        for event in events:
+        risk_level_count = {}
+        total_risk_score = 0
+        max_risk_score = 0
 
+        for event in events:
             severity = event[3]
             event_type = event[2]
 
             # Count severity
             if severity not in severity_count:
                 severity_count[severity] = 0
-
             severity_count[severity] += 1
 
             # Count event type
             if event_type not in event_type_count:
                 event_type_count[event_type] = 0
-
             event_type_count[event_type] += 1
+
+            # Calculate risk
+            risk = analyze_event_risk({
+                "severity": severity,
+                "event_type": event_type
+            })
+
+            risk_score = risk["risk_score"]
+            risk_level = risk["risk_level"]
+
+            total_risk_score += risk_score
+            max_risk_score = max(max_risk_score, risk_score)
+
+            if risk_level not in risk_level_count:
+                risk_level_count[risk_level] = 0
+            risk_level_count[risk_level] += 1
+
+        average_risk_score = (
+            round(total_risk_score / total_events, 2)
+            if total_events > 0 else 0
+        )
 
         return jsonify({
             "total_events": total_events,
             "severity": severity_count,
-            "event_types": event_type_count
+            "event_types": event_type_count,
+            "risk": {
+                "total_score": total_risk_score,
+                "average_score": average_risk_score,
+                "maximum_score": max_risk_score,
+                "levels": risk_level_count
+            }
         })
 
     except Exception as e:
-
         return jsonify({
             "status": "error",
             "message": "Failed to generate statistics.",
