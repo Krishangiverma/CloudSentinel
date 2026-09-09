@@ -343,6 +343,44 @@ def get_all_alerts():
 
 
 # ============================================================
+# Find Recent Duplicate Alert
+# ============================================================
+
+def find_recent_duplicate_alert(event_type, ip_address, since):
+    """Return a recent matching alert, if one exists."""
+
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            id,
+            event_type,
+            severity,
+            message,
+            ip_address,
+            created_at,
+            status
+        FROM security_alerts
+        WHERE event_type = ?
+          AND ip_address = ?
+          AND created_at >= ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (str(event_type), str(ip_address), str(since)),
+    )
+
+    alert = cursor.fetchone()
+    connection.close()
+
+    return alert
+
+
+# ============================================================
 # Get New Alerts
 # ============================================================
 

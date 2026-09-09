@@ -5,7 +5,9 @@ Responsible for converting security events into alerts
 and storing them in the CloudSentinel database.
 """
 
-from src.data.database import save_alert
+from datetime import datetime, timedelta
+
+from src.data.database import save_alert, find_recent_duplicate_alert
 from src.notification_manager import send_notification
 
 
@@ -16,6 +18,12 @@ class AlertManager:
 
     def __init__(self):
         self.alert_count = 0
+        self.suppression_window = timedelta(minutes=5)
+
+    def is_duplicate(self, event_type, ip_address):
+        """Check whether the same event type and IP alerted recently."""
+        since = (datetime.now() - self.suppression_window).isoformat()
+        return find_recent_duplicate_alert(event_type, ip_address, since) is not None
 
     def create_alert(self, event):
         """
@@ -53,6 +61,13 @@ class AlertManager:
         """
 
         alert = self.create_alert(event)
+
+        if self.is_duplicate(alert["event_type"], alert["ip_address"]):
+            print(
+                f"[AlertManager] Alert suppressed: "
+                f"{alert['event_type']} | IP={alert['ip_address']}"
+            )
+            return None
 
         save_alert(alert)
 
