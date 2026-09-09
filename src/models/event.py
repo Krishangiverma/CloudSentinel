@@ -34,6 +34,7 @@ class SecurityEvent:
     message: str
     source: str = "UNKNOWN"
     ip_address: str = "N/A"
+    risk_score: int | float | None = None
 
     def __post_init__(self):
         """

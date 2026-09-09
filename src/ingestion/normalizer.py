@@ -126,4 +126,5 @@ def normalize_event(event):
         message=str(message),
         source=str(source),
         ip_address=str(ip_address),
+        risk_score=_get_value(event, "risk_score"),
     )

@@ -238,7 +238,8 @@ def create_event():
             "severity": data.get("severity", "LOW"),
             "message": data.get("message", "No message available"),
             "source": data.get("source", "CloudSentinel"),
-            "ip_address": data.get("ip_address", "N/A")
+            "ip_address": data.get("ip_address", "N/A"),
+            "risk_score": data.get("risk_score")
         }
 
         ingest_event(event)

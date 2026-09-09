@@ -1,192 +1,425 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>CloudSentinel Security Dashboard</title>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>CloudSentinel SOC Dashboard</title>
 
     <style>
+
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 30px;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b1120;
+            color: #e5e7eb;
         }
 
         .container {
-            max-width: 1200px;
-            margin: auto;
+            width: 94%;
+            max-width: 1500px;
+            margin: 30px auto;
         }
 
         header {
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
 
         header h1 {
+            margin: 0;
             font-size: 32px;
-            margin-bottom: 8px;
         }
 
         header p {
             color: #94a3b8;
+            margin-top: 8px;
         }
+
+        /* =====================================================
+           SUMMARY CARDS
+           ===================================================== */
 
         .cards {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns:
+                repeat(auto-fit, minmax(180px, 1fr));
+
+            gap: 16px;
+            margin-bottom: 25px;
         }
 
         .card {
-            background: #1e293b;
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #334155;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 10px;
+            padding: 20px;
         }
 
         .card h3 {
+            margin: 0 0 12px;
             color: #94a3b8;
-            font-size: 15px;
-            margin-bottom: 12px;
+            font-size: 14px;
+            text-transform: uppercase;
         }
 
-        .card .number {
-            font-size: 32px;
+        .number {
+            font-size: 30px;
             font-weight: bold;
         }
 
-        .events-section {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 25px;
+        .number.high {
+            color: #fb923c;
         }
 
-        .events-section h2 {
+        .number.medium {
+            color: #facc15;
+        }
+
+        .number.low {
+            color: #4ade80;
+        }
+
+        /* =====================================================
+           EVENT SECTION
+           ===================================================== */
+
+        .events-section,
+        .risk-section,
+        .incidents-section {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 10px;
+            padding: 22px;
+            margin-bottom: 25px;
+        }
+
+        .events-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
             margin-bottom: 20px;
+        }
+
+        .events-header h2,
+        .risk-section h2,
+        .incidents-section h2 {
+            margin: 0;
+        }
+
+        .live-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .live-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #64748b;
+        }
+
+        .live-status.live .live-dot {
+            background: #22c55e;
+            box-shadow: 0 0 10px #22c55e;
+        }
+
+        .alert-summary {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .alert-summary-item {
+            background: #0f172a;
+            padding: 9px 13px;
+            border-radius: 7px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .alert-summary-item strong {
+            color: #f8fafc;
+            margin-left: 4px;
+        }
+
+        .critical-summary strong {
+            color: #ef4444;
+        }
+
+        .high-summary strong {
+            color: #fb923c;
+        }
+
+        /* =====================================================
+           LIVE ALERT FEED
+           ===================================================== */
+
+        .live-alert-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .alert-empty {
+            padding: 30px;
+            text-align: center;
+            color: #64748b;
+            border: 1px dashed #334155;
+            border-radius: 8px;
+        }
+
+        .live-alert-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+
+            padding: 16px;
+
+            background: #0f172a;
+            border: 1px solid #263244;
+            border-left: 4px solid #64748b;
+
+            border-radius: 8px;
+
+            transition:
+                transform 0.2s ease,
+                border-color 0.2s ease;
+        }
+
+        .live-alert-card:hover {
+            transform: translateX(3px);
+        }
+
+        .live-alert-card.critical {
+            border-left-color: #ef4444;
+        }
+
+        .live-alert-card.high {
+            border-left-color: #f97316;
+        }
+
+        .live-alert-card.medium {
+            border-left-color: #eab308;
+        }
+
+        .live-alert-card.low {
+            border-left-color: #22c55e;
+        }
+
+        .live-alert-card.new-alert {
+            animation: alertPulse 2.5s ease;
+        }
+
+        @keyframes alertPulse {
+
+            0% {
+                transform: translateX(12px);
+                opacity: 0;
+            }
+
+            20% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 1;
+            }
+
+        }
+
+        .alert-main {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .alert-top-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .severity-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 5px;
+
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .severity-badge.critical {
+            background: #450a0a;
+            color: #fca5a5;
+        }
+
+        .severity-badge.high {
+            background: #431407;
+            color: #fdba74;
+        }
+
+        .severity-badge.medium {
+            background: #422006;
+            color: #fde68a;
+        }
+
+        .severity-badge.low {
+            background: #052e16;
+            color: #86efac;
+        }
+
+        .event-type {
+            font-weight: bold;
+            color: #e2e8f0;
+        }
+
+        .alert-time {
+            margin-left: auto;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .alert-message {
+            margin-top: 9px;
+            color: #cbd5e1;
+            word-break: break-word;
+        }
+
+        .alert-metadata {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .alert-metadata strong {
+            color: #94a3b8;
+        }
+
+        .risk-score {
+            min-width: 85px;
+            text-align: center;
+            padding: 10px;
+            background: #111827;
+            border-radius: 7px;
+        }
+
+        .risk-score-label {
+            display: block;
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        .risk-score-value {
+            display: block;
+            font-size: 25px;
+            font-weight: bold;
+            color: #f8fafc;
+        }
+
+        .risk-score-max {
+            color: #64748b;
+            font-size: 10px;
+        }
+
+        /* =====================================================
+           EVENT HISTORY TABLE
+           ===================================================== */
+
+        .events-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .events-table-wrapper h3 {
+            color: #cbd5e1;
+            margin-bottom: 12px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 850px;
         }
 
         th,
         td {
-            padding: 14px;
+            padding: 12px;
+            border-bottom: 1px solid #1f2937;
             text-align: left;
-            border-bottom: 1px solid #334155;
+            font-size: 13px;
         }
 
         th {
             color: #94a3b8;
-            font-size: 14px;
+            font-size: 11px;
+            text-transform: uppercase;
+            background: #0f172a;
         }
 
         td {
-            font-size: 14px;
+            color: #cbd5e1;
         }
 
-        .severity {
+        .table-risk-score {
             font-weight: bold;
-        }
-
-        .high {
-            color: #ef4444;
-        }
-
-        .medium {
-            color: #f59e0b;
-        }
-
-        .low {
-            color: #22c55e;
         }
 
         .status {
-            margin-top: 20px;
-            color: #94a3b8;
-            font-size: 13px;
+            margin-top: 15px;
+            color: #64748b;
+            font-size: 12px;
         }
 
-        @media (max-width: 900px) {
-            .cards {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 600px) {
-            .cards {
-                grid-template-columns: 1fr;
-            }
-
-            body {
-                padding: 15px;
-            }
-
-            .events-section {
-                overflow-x: auto;
-            }
-        }
-    
-        .incidents-section {
-            margin-top: 30px;
-        }
-
-        .incident-critical {
-            color: #f87171;
-            font-weight: bold;
-        }
-
-        .incident-status {
-            color: #fbbf24;
-            font-weight: bold;
-        }
-
-        .incident-empty {
-            text-align: center;
-            padding: 20px;
-            opacity: 0.7;
-        }
-
-
-        .risk-section {
-            margin-top: 30px;
-        }
+        /* =====================================================
+           RISK DISTRIBUTION
+           ===================================================== */
 
         .risk-bars {
-            display: grid;
-            gap: 14px;
             margin-top: 20px;
         }
 
         .risk-row {
             display: grid;
-            grid-template-columns: 100px 1fr 50px;
+            grid-template-columns: 90px 1fr 50px;
             align-items: center;
             gap: 12px;
+            margin-bottom: 12px;
         }
 
         .risk-bar-container {
-            height: 18px;
+            height: 10px;
             background: #1e293b;
-            border-radius: 8px;
+            border-radius: 5px;
             overflow: hidden;
         }
 
         .risk-bar {
             height: 100%;
-            width: 0%;
-            border-radius: 8px;
-            transition: width 0.5s ease;
+            width: 0;
+            border-radius: 5px;
         }
 
         .risk-critical {
@@ -205,396 +438,1462 @@
             background: #22c55e;
         }
 
-</style>
+        /* =====================================================
+           INCIDENTS
+           ===================================================== */
+
+        .incident-critical {
+            color: #f87171;
+            font-weight: bold;
+        }
+
+        .incident-status {
+            color: #94a3b8;
+        }
+
+        .incident-empty {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+        }
+
+        /* =====================================================
+           RESPONSIVE
+           ===================================================== */
+
+        @media (max-width: 700px) {
+
+            .events-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .live-alert-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .risk-score {
+                width: 100%;
+            }
+
+            .alert-time {
+                margin-left: 0;
+            }
+
+        }
+
+    </style>
+
 </head>
+
 
 <body>
 
 <div class="container">
 
+    <!-- =====================================================
+         HEADER
+         ===================================================== -->
+
     <header>
-        <h1>🛡️ CloudSentinel</h1>
-        <p>Security Monitoring Dashboard</p>
+
+        <h1>CloudSentinel SOC Dashboard</h1>
+
+        <p>
+            Real-Time Security Operations &amp; Threat Detection
+        </p>
+
     </header>
+
+
+    <!-- =====================================================
+         SUMMARY CARDS
+         ===================================================== -->
 
     <div class="cards">
 
         <div class="card">
             <h3>Total Events</h3>
-            <div class="number" id="total-events">0</div>
+            <div
+                class="number"
+                id="total-events"
+            >
+                0
+            </div>
         </div>
+
 
         <div class="card">
             <h3>High Severity</h3>
-            <div class="number high" id="high-events">0</div>
+            <div
+                class="number high"
+                id="high-events"
+            >
+                0
+            </div>
         </div>
+
 
         <div class="card">
             <h3>Medium Severity</h3>
-            <div class="number medium" id="medium-events">0</div>
+            <div
+                class="number medium"
+                id="medium-events"
+            >
+                0
+            </div>
         </div>
+
 
         <div class="card">
             <h3>Low Severity</h3>
-            <div class="number low" id="low-events">0</div>
+            <div
+                class="number low"
+                id="low-events"
+            >
+                0
+            </div>
         </div>
+
 
         <div class="card">
             <h3>Average Risk</h3>
-            <div class="number" id="average-risk">0</div>
+            <div
+                class="number"
+                id="average-risk"
+            >
+                0
+            </div>
         </div>
+
 
         <div class="card">
             <h3>Critical Incidents</h3>
-            <div class="number high" id="critical-incidents">0</div>
+            <div
+                class="number high"
+                id="critical-incidents"
+            >
+                0
+            </div>
         </div>
 
     </div>
 
+
+    <!-- =====================================================
+         REAL-TIME SECURITY ALERTS
+         ===================================================== -->
+
     <div class="events-section">
 
-        <h2>Security Events</h2>
+        <div class="events-header">
 
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Event Type</th>
-                    <th>Severity</th>
-                    <th>Message</th>
-                    <th>Source</th>
-                    <th>IP Address</th>
-                    <th>Timestamp</th>
-                </tr>
-            </thead>
+            <div>
 
-            <tbody id="events-table">
-            </tbody>
-        </table>
+                <h2>Live Security Alerts</h2>
 
-        <div class="status" id="status">
+                <div
+                    class="live-status"
+                    id="live-status"
+                >
+
+                    <span class="live-dot"></span>
+
+                    <span id="live-status-text">
+                        CONNECTING...
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="alert-summary">
+
+                <span class="alert-summary-item">
+
+                    Total:
+                    <strong id="live-alert-count">
+                        0
+                    </strong>
+
+                </span>
+
+
+                <span
+                    class="alert-summary-item critical-summary"
+                >
+
+                    Critical:
+                    <strong id="live-critical-count">
+                        0
+                    </strong>
+
+                </span>
+
+
+                <span
+                    class="alert-summary-item high-summary"
+                >
+
+                    High:
+                    <strong id="live-high-count">
+                        0
+                    </strong>
+
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div
+            class="live-alert-feed"
+            id="live-alert-feed"
+        >
+
+            <div
+                class="alert-empty"
+                id="alert-empty"
+            >
+                Waiting for real-time security alerts...
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             EVENT HISTORY
+             ================================================= -->
+
+        <div class="events-table-wrapper">
+
+            <h3>Security Event History</h3>
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>ID</th>
+                        <th>Event Type</th>
+                        <th>Severity</th>
+                        <th>Risk</th>
+                        <th>Message</th>
+                        <th>Source</th>
+                        <th>IP Address</th>
+                        <th>Timestamp</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="events-table">
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <div
+            class="status"
+            id="status"
+        >
             Loading security events...
         </div>
 
     </div>
 
-</div>
 
-<script src="/static/socket.io.min.js"></script>
-
-<script>
-
-async function loadEvents() {
-
-    try {
-
-        const response = await fetch("/api/events");
-
-        if (!response.ok) {
-            throw new Error("API request failed");
-        }
-
-        const data = await response.json();
-
-        const events = data.events || [];
-
-        // Update total
-        document.getElementById("total-events").textContent =
-            events.length;
-
-        // Load risk statistics
-        const statsResponse = await fetch("/api/stats");
-
-        if (statsResponse.ok) {
-            const stats = await statsResponse.json();
-
-            const averageRisk =
-                stats.risk?.average_score ?? 0;
-
-            document.getElementById("average-risk").textContent =
-                averageRisk;
-
-            // Update risk distribution bars
-            const riskLevels = stats.risk?.levels || {};
-
-            const criticalCount = riskLevels.CRITICAL || 0;
-            const highCount = riskLevels.HIGH || 0;
-            const mediumCount = riskLevels.MEDIUM || 0;
-            const lowCount = riskLevels.LOW || 0;
-
-            const totalRiskEvents =
-                criticalCount +
-                highCount +
-                mediumCount +
-                lowCount;
-
-            document.getElementById("risk-critical-count").textContent =
-                criticalCount;
-
-            document.getElementById("risk-high-count").textContent =
-                highCount;
-
-            document.getElementById("risk-medium-count").textContent =
-                mediumCount;
-
-            document.getElementById("risk-low-count").textContent =
-                lowCount;
-
-            if (totalRiskEvents > 0) {
-                document.getElementById("risk-critical-bar").style.width =
-                    `${(criticalCount / totalRiskEvents) * 100}%`;
-
-                document.getElementById("risk-high-bar").style.width =
-                    `${(highCount / totalRiskEvents) * 100}%`;
-
-                document.getElementById("risk-medium-bar").style.width =
-                    `${(mediumCount / totalRiskEvents) * 100}%`;
-
-                document.getElementById("risk-low-bar").style.width =
-                    `${(lowCount / totalRiskEvents) * 100}%`;
-            }
-
-            // Load correlated incidents
-            const incidentsResponse =
-                await fetch("/api/incidents");
-
-            if (incidentsResponse.ok) {
-                const incidentData =
-                    await incidentsResponse.json();
-
-                const criticalIncidents =
-                    (incidentData.incidents || []).filter(
-                        incident => incident.risk_level === "CRITICAL"
-                    ).length;
-
-                document.getElementById("critical-incidents").textContent =
-                    criticalIncidents;
-
-                // Populate correlated incidents table
-                const incidentsTable =
-                    document.getElementById("incidents-table");
-
-                incidentsTable.innerHTML = "";
-
-                const incidents = incidentData.incidents || [];
-
-                if (incidents.length === 0) {
-                    incidentsTable.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="incident-empty">
-                                No correlated incidents detected.
-                            </td>
-                        </tr>
-                    `;
-                } else {
-                    incidents.forEach(incident => {
-                        const row = document.createElement("tr");
-
-                        row.innerHTML = `
-                            <td>${incident.ip_address}</td>
-                            <td>${incident.event_count}</td>
-                            <td>${incident.max_risk_score}</td>
-                            <td class="incident-critical">
-                                ${incident.risk_level}
-                            </td>
-                            <td class="incident-status">
-                                ${incident.status}
-                            </td>
-                        `;
-
-                        incidentsTable.appendChild(row);
-                    });
-                }
-            }
-        }
-
-        // Count severities
-        const high = events.filter(
-            event => event.severity === "HIGH"
-        ).length;
-
-        const medium = events.filter(
-            event => event.severity === "MEDIUM"
-        ).length;
-
-        const low = events.filter(
-            event => event.severity === "LOW"
-        ).length;
-
-        document.getElementById("high-events").textContent = high;
-        document.getElementById("medium-events").textContent = medium;
-        document.getElementById("low-events").textContent = low;
-
-        // Table
-        const table = document.getElementById("events-table");
-
-        table.innerHTML = "";
-
-        events.forEach(event => {
-
-            const row = document.createElement("tr");
-
-            let severityClass = "";
-
-            if (event.severity === "HIGH") {
-                severityClass = "high";
-            }
-            else if (event.severity === "MEDIUM") {
-                severityClass = "medium";
-            }
-            else if (event.severity === "LOW") {
-                severityClass = "low";
-            }
-
-            row.innerHTML = `
-                <td>${event.id}</td>
-                <td>${event.event_type}</td>
-                <td class="severity ${severityClass}">
-                    ${event.severity}
-                </td>
-                <td>${event.message}</td>
-                <td>${event.source}</td>
-                <td>${event.ip_address}</td>
-                <td>${event.timestamp}</td>
-            `;
-
-            table.appendChild(row);
-        });
-
-        document.getElementById("status").textContent =
-            `Loaded ${events.length} security event(s).`;
-
-    }
-
-    catch (error) {
-
-        console.error(error);
-
-        document.getElementById("status").textContent =
-            "Unable to load security events.";
-
-    }
-}
-
-
-
-// ============================================================
-// REAL-TIME WEBSOCKET CONNECTION
-// ============================================================
-
-const socket = io({ transports: ["polling"], upgrade: false });
-
-socket.on("connect", () => {
-    console.log("[WebSocket] Connected:", socket.id);
-
-    document.getElementById("status").textContent =
-        "Real-time connection established.";
-});
-
-
-socket.on("disconnect", () => {
-    console.warn("[WebSocket] Disconnected.");
-
-    document.getElementById("status").textContent =
-        "Real-time connection lost. REST polling remains active.";
-});
-
-
-socket.on("connect_error", (error) => {
-    console.error("[WebSocket] Connection error:", error);
-
-    document.getElementById("status").textContent =
-        "Real-time connection error. REST polling remains active.";
-});
-
-
-socket.on("security_event", (event) => {
-    console.log("[WebSocket] Security event received:", event);
-
-    // Reload the dashboard data immediately so the new event,
-    // statistics, risk distribution and incidents stay consistent.
-    loadEvents();
-});
-
-
-// Load events when page opens
-loadEvents();
-
-
-// Refresh every 10 seconds
-setInterval(loadEvents, 10000);
-
-</script>
-
-
-    <section class="incidents-section">
-        <h2>Correlated Security Incidents</h2>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Source IP</th>
-                    <th>Events</th>
-                    <th>Max Risk</th>
-                    <th>Risk Level</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-
-            <tbody id="incidents-table">
-                <tr>
-                    <td colspan="5" class="incident-empty">
-                        Loading incidents...
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-
+    <!-- =====================================================
+         RISK DISTRIBUTION
+         ===================================================== -->
 
     <section class="risk-section">
+
         <h2>Risk Distribution</h2>
 
-        <div class="risk-bars" id="risk-distribution">
+
+        <div class="risk-bars">
 
             <div class="risk-row">
-                <strong>Critical</strong>
+
+                <span>CRITICAL</span>
+
                 <div class="risk-bar-container">
-                    <div class="risk-bar risk-critical"
-                         id="risk-critical-bar"></div>
+
+                    <div
+                        class="risk-bar risk-critical"
+                        id="risk-critical-bar"
+                    ></div>
+
                 </div>
-                <span id="risk-critical-count">0</span>
+
+                <span id="risk-critical-count">
+                    0
+                </span>
+
             </div>
 
-            <div class="risk-row">
-                <strong>High</strong>
-                <div class="risk-bar-container">
-                    <div class="risk-bar risk-high"
-                         id="risk-high-bar"></div>
-                </div>
-                <span id="risk-high-count">0</span>
-            </div>
 
             <div class="risk-row">
-                <strong>Medium</strong>
+
+                <span>HIGH</span>
+
                 <div class="risk-bar-container">
-                    <div class="risk-bar risk-medium"
-                         id="risk-medium-bar"></div>
+
+                    <div
+                        class="risk-bar risk-high"
+                        id="risk-high-bar"
+                    ></div>
+
                 </div>
-                <span id="risk-medium-count">0</span>
+
+                <span id="risk-high-count">
+                    0
+                </span>
+
             </div>
 
+
             <div class="risk-row">
-                <strong>Low</strong>
+
+                <span>MEDIUM</span>
+
                 <div class="risk-bar-container">
-                    <div class="risk-bar risk-low"
-                         id="risk-low-bar"></div>
+
+                    <div
+                        class="risk-bar risk-medium"
+                        id="risk-medium-bar"
+                    ></div>
+
                 </div>
-                <span id="risk-low-count">0</span>
+
+                <span id="risk-medium-count">
+                    0
+                </span>
+
+            </div>
+
+
+            <div class="risk-row">
+
+                <span>LOW</span>
+
+                <div class="risk-bar-container">
+
+                    <div
+                        class="risk-bar risk-low"
+                        id="risk-low-bar"
+                    ></div>
+
+                </div>
+
+                <span id="risk-low-count">
+                    0
+                </span>
+
             </div>
 
         </div>
+
     </section>
 
+
+    <!-- =====================================================
+         CORRELATED INCIDENTS
+         ===================================================== -->
+
+    <section class="incidents-section">
+
+        <h2>Correlated Security Incidents</h2>
+
+
+        <div class="events-table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>IP Address</th>
+                        <th>Events</th>
+                        <th>Max Risk</th>
+                        <th>Risk Level</th>
+                        <th>Status</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="incidents-table">
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</div>
+
+
+<!-- =========================================================
+     SOCKET.IO
+     ========================================================= -->
+
+<script src="/static/socket.io.min.js"></script>
+
+
+<script>
+
+    // =========================================================
+    // CONFIGURATION
+    // =========================================================
+
+    const MAX_LIVE_ALERTS = 20;
+
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    function escapeHtml(value) {
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+            return "";
+        }
+
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+
+    function normalizeSeverity(severity) {
+
+        const value =
+            String(
+                severity || "LOW"
+            ).toUpperCase();
+
+
+        const allowed = [
+            "CRITICAL",
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+        ];
+
+
+        if (
+            allowed.includes(value)
+        ) {
+            return value;
+        }
+
+
+        return "LOW";
+    }
+
+
+    function severityClass(severity) {
+
+        return normalizeSeverity(
+            severity
+        ).toLowerCase();
+    }
+
+
+    function formatTimestamp(timestamp) {
+
+        if (!timestamp) {
+            return "N/A";
+        }
+
+
+        try {
+
+            const date =
+                new Date(timestamp);
+
+
+            if (
+                Number.isNaN(
+                    date.getTime()
+                )
+            ) {
+                return String(timestamp);
+            }
+
+
+            return date.toLocaleString();
+
+        }
+
+        catch (error) {
+
+            return String(timestamp);
+
+        }
+
+    }
+
+
+    // =========================================================
+    // LIVE CONNECTION STATUS
+    // =========================================================
+
+    function setLiveStatus(
+        connected,
+        text
+    ) {
+
+        const status =
+            document.getElementById(
+                "live-status"
+            );
+
+
+        const textElement =
+            document.getElementById(
+                "live-status-text"
+            );
+
+
+        if (textElement) {
+
+            textElement.textContent =
+                text;
+
+        }
+
+
+        if (status) {
+
+            if (connected) {
+
+                status.classList.add(
+                    "live"
+                );
+
+            }
+
+            else {
+
+                status.classList.remove(
+                    "live"
+                );
+
+            }
+
+        }
+
+    }
+
+
+    // =========================================================
+    // LIVE ALERT CARD
+    // =========================================================
+
+    function createAlertCard(event) {
+
+        const severity =
+            normalizeSeverity(
+                event.severity
+            );
+
+
+        const className =
+            severityClass(
+                severity
+            );
+
+
+        const riskScore =
+            event.risk_score !== null &&
+            event.risk_score !== undefined
+                ? event.risk_score
+                : "—";
+
+
+        const riskLevel =
+            event.risk_level ||
+            severity;
+
+
+        const card =
+            document.createElement(
+                "div"
+            );
+
+
+        card.className =
+            `live-alert-card ${className}`;
+
+
+        card.innerHTML = `
+
+            <div class="alert-main">
+
+                <div class="alert-top-row">
+
+                    <span
+                        class="severity-badge ${className}"
+                    >
+                        ${escapeHtml(severity)}
+                    </span>
+
+                    <span class="event-type">
+                        ${escapeHtml(
+                            event.event_type ||
+                            "UNKNOWN"
+                        )}
+                    </span>
+
+                    <span class="alert-time">
+                        ${escapeHtml(
+                            formatTimestamp(
+                                event.timestamp
+                            )
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="alert-message">
+
+                    ${escapeHtml(
+                        event.message ||
+                        "No message available"
+                    )}
+
+                </div>
+
+
+                <div class="alert-metadata">
+
+                    <span>
+                        <strong>Source:</strong>
+                        ${escapeHtml(
+                            event.source ||
+                            "UNKNOWN"
+                        )}
+                    </span>
+
+                    <span>
+                        <strong>IP:</strong>
+                        ${escapeHtml(
+                            event.ip_address ||
+                            "N/A"
+                        )}
+                    </span>
+
+                    <span>
+                        <strong>Risk:</strong>
+                        ${escapeHtml(
+                            riskLevel
+                        )}
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="risk-score">
+
+                <span class="risk-score-label">
+                    RISK
+                </span>
+
+                <span class="risk-score-value">
+                    ${escapeHtml(
+                        riskScore
+                    )}
+                </span>
+
+                <span class="risk-score-max">
+                    / 100
+                </span>
+
+            </div>
+
+        `;
+
+
+        return card;
+
+    }
+
+
+    // =========================================================
+    // ADD LIVE ALERT
+    // =========================================================
+
+    function addLiveAlert(event) {
+
+        const feed =
+            document.getElementById(
+                "live-alert-feed"
+            );
+
+
+        const empty =
+            document.getElementById(
+                "alert-empty"
+            );
+
+
+        if (!feed) {
+            return;
+        }
+
+
+        if (empty) {
+            empty.remove();
+        }
+
+
+        const card =
+            createAlertCard(
+                event
+            );
+
+
+        feed.prepend(
+            card
+        );
+
+
+        requestAnimationFrame(
+            () => {
+
+                card.classList.add(
+                    "new-alert"
+                );
+
+
+                setTimeout(
+                    () => {
+
+                        card.classList.remove(
+                            "new-alert"
+                        );
+
+                    },
+                    2500
+                );
+
+            }
+        );
+
+
+        while (
+            feed.children.length >
+            MAX_LIVE_ALERTS
+        ) {
+
+            feed.lastElementChild.remove();
+
+        }
+
+    }
+
+
+    // =========================================================
+    // LIVE COUNTERS
+    // =========================================================
+
+    function updateLiveCounters(event) {
+
+        const total =
+            document.getElementById(
+                "live-alert-count"
+            );
+
+
+        const critical =
+            document.getElementById(
+                "live-critical-count"
+            );
+
+
+        const high =
+            document.getElementById(
+                "live-high-count"
+            );
+
+
+        if (total) {
+
+            total.textContent =
+                Number(
+                    total.textContent
+                ) + 1;
+
+        }
+
+
+        const severity =
+            normalizeSeverity(
+                event.severity
+            );
+
+
+        if (
+            severity === "CRITICAL" &&
+            critical
+        ) {
+
+            critical.textContent =
+                Number(
+                    critical.textContent
+                ) + 1;
+
+        }
+
+
+        if (
+            severity === "HIGH" &&
+            high
+        ) {
+
+            high.textContent =
+                Number(
+                    high.textContent
+                ) + 1;
+
+        }
+
+    }
+
+
+    // =========================================================
+    // LOAD REST EVENTS
+    // =========================================================
+
+    async function loadEvents() {
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/events"
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Events API request failed"
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            const events =
+                data.events || [];
+
+
+            // -----------------------------------------------
+            // TOTAL
+            // -----------------------------------------------
+
+            const totalElement =
+                document.getElementById(
+                    "total-events"
+                );
+
+
+            if (totalElement) {
+
+                totalElement.textContent =
+                    events.length;
+
+            }
+
+
+            // -----------------------------------------------
+            // SEVERITY COUNTS
+            // -----------------------------------------------
+
+            const critical =
+                events.filter(
+                    event =>
+                        normalizeSeverity(
+                            event.severity
+                        ) === "CRITICAL"
+                ).length;
+
+
+            const high =
+                events.filter(
+                    event =>
+                        normalizeSeverity(
+                            event.severity
+                        ) === "HIGH"
+                ).length;
+
+
+            const medium =
+                events.filter(
+                    event =>
+                        normalizeSeverity(
+                            event.severity
+                        ) === "MEDIUM"
+                ).length;
+
+
+            const low =
+                events.filter(
+                    event =>
+                        normalizeSeverity(
+                            event.severity
+                        ) === "LOW"
+                ).length;
+
+
+            document.getElementById(
+                "high-events"
+            ).textContent = high;
+
+
+            document.getElementById(
+                "medium-events"
+            ).textContent = medium;
+
+
+            document.getElementById(
+                "low-events"
+            ).textContent = low;
+
+
+            // -----------------------------------------------
+            // RISK STATS
+            // -----------------------------------------------
+
+            const statsResponse =
+                await fetch(
+                    "/api/stats"
+                );
+
+
+            if (statsResponse.ok) {
+
+                const stats =
+                    await statsResponse.json();
+
+
+                const averageRisk =
+                    stats.risk?.average_score ??
+                    0;
+
+
+                document.getElementById(
+                    "average-risk"
+                ).textContent =
+                    averageRisk;
+
+
+                const levels =
+                    stats.risk?.levels || {};
+
+
+                const criticalRisk =
+                    levels.CRITICAL || 0;
+
+
+                const highRisk =
+                    levels.HIGH || 0;
+
+
+                const mediumRisk =
+                    levels.MEDIUM || 0;
+
+
+                const lowRisk =
+                    levels.LOW || 0;
+
+
+                document.getElementById(
+                    "risk-critical-count"
+                ).textContent =
+                    criticalRisk;
+
+
+                document.getElementById(
+                    "risk-high-count"
+                ).textContent =
+                    highRisk;
+
+
+                document.getElementById(
+                    "risk-medium-count"
+                ).textContent =
+                    mediumRisk;
+
+
+                document.getElementById(
+                    "risk-low-count"
+                ).textContent =
+                    lowRisk;
+
+
+                const riskTotal =
+                    criticalRisk +
+                    highRisk +
+                    mediumRisk +
+                    lowRisk;
+
+
+                if (riskTotal > 0) {
+
+                    document.getElementById(
+                        "risk-critical-bar"
+                    ).style.width =
+                        `${(
+                            criticalRisk /
+                            riskTotal
+                        ) * 100}%`;
+
+
+                    document.getElementById(
+                        "risk-high-bar"
+                    ).style.width =
+                        `${(
+                            highRisk /
+                            riskTotal
+                        ) * 100}%`;
+
+
+                    document.getElementById(
+                        "risk-medium-bar"
+                    ).style.width =
+                        `${(
+                            mediumRisk /
+                            riskTotal
+                        ) * 100}%`;
+
+
+                    document.getElementById(
+                        "risk-low-bar"
+                    ).style.width =
+                        `${(
+                            lowRisk /
+                            riskTotal
+                        ) * 100}%`;
+
+                }
+
+            }
+
+
+            // -----------------------------------------------
+            // EVENT HISTORY TABLE
+            // -----------------------------------------------
+
+            const table =
+                document.getElementById(
+                    "events-table"
+                );
+
+
+            table.innerHTML = "";
+
+
+            events.forEach(
+                event => {
+
+                    const row =
+                        document.createElement(
+                            "tr"
+                        );
+
+
+                    const severity =
+                        normalizeSeverity(
+                            event.severity
+                        );
+
+
+                    const className =
+                        severityClass(
+                            severity
+                        );
+
+
+                    const riskScore =
+                        event.risk_score !== null &&
+                        event.risk_score !== undefined
+                            ? event.risk_score
+                            : "—";
+
+
+                    row.innerHTML = `
+
+                        <td>
+                            ${escapeHtml(
+                                event.id
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                event.event_type
+                            )}
+                        </td>
+
+                        <td>
+                            <span
+                                class="severity-badge ${className}"
+                            >
+                                ${escapeHtml(
+                                    severity
+                                )}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span class="table-risk-score">
+                                ${escapeHtml(
+                                    riskScore
+                                )}
+                            </span>
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                event.message
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                event.source
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                event.ip_address
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                formatTimestamp(
+                                    event.timestamp
+                                )
+                            )}
+                        </td>
+
+                    `;
+
+
+                    table.appendChild(
+                        row
+                    );
+
+                }
+            );
+
+
+            // -----------------------------------------------
+            // INCIDENTS
+            // -----------------------------------------------
+
+            const incidentsResponse =
+                await fetch(
+                    "/api/incidents"
+                );
+
+
+            if (
+                incidentsResponse.ok
+            ) {
+
+                const incidentData =
+                    await incidentsResponse.json();
+
+
+                const incidents =
+                    incidentData.incidents ||
+                    [];
+
+
+                document.getElementById(
+                    "critical-incidents"
+                ).textContent =
+                    incidents.filter(
+                        incident =>
+                            incident.risk_level ===
+                            "CRITICAL"
+                    ).length;
+
+
+                const incidentsTable =
+                    document.getElementById(
+                        "incidents-table"
+                    );
+
+
+                incidentsTable.innerHTML =
+                    "";
+
+
+                if (
+                    incidents.length === 0
+                ) {
+
+                    incidentsTable.innerHTML = `
+
+                        <tr>
+
+                            <td
+                                colspan="5"
+                                class="incident-empty"
+                            >
+                                No correlated incidents detected.
+                            </td>
+
+                        </tr>
+
+                    `;
+
+                }
+
+                else {
+
+                    incidents.forEach(
+                        incident => {
+
+                            const row =
+                                document.createElement(
+                                    "tr"
+                                );
+
+
+                            row.innerHTML = `
+
+                                <td>
+                                    ${escapeHtml(
+                                        incident.ip_address
+                                    )}
+                                </td>
+
+                                <td>
+                                    ${escapeHtml(
+                                        incident.event_count
+                                    )}
+                                </td>
+
+                                <td>
+                                    ${escapeHtml(
+                                        incident.max_risk_score
+                                    )}
+                                </td>
+
+                                <td class="incident-critical">
+                                    ${escapeHtml(
+                                        incident.risk_level
+                                    )}
+                                </td>
+
+                                <td class="incident-status">
+                                    ${escapeHtml(
+                                        incident.status
+                                    )}
+                                </td>
+
+                            `;
+
+
+                            incidentsTable.appendChild(
+                                row
+                            );
+
+                        }
+                    );
+
+                }
+
+            }
+
+
+            document.getElementById(
+                "status"
+            ).textContent =
+                `Loaded ${events.length} security event(s).`;
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "[Dashboard] Load error:",
+                error
+            );
+
+
+            document.getElementById(
+                "status"
+            ).textContent =
+                "Unable to load security events.";
+
+        }
+
+    }
+
+
+    // =========================================================
+    // SOCKET.IO CONNECTION
+    // =========================================================
+
+    const socket =
+        io({
+            transports: ["polling"],
+            upgrade: false
+        });
+
+
+    socket.on(
+        "connect",
+        () => {
+
+            console.log(
+                "[WebSocket] Connected:",
+                socket.id
+            );
+
+
+            setLiveStatus(
+                true,
+                "LIVE"
+            );
+
+
+            document.getElementById(
+                "status"
+            ).textContent =
+                "Real-time connection established.";
+
+        }
+    );
+
+
+    socket.on(
+        "disconnect",
+        () => {
+
+            console.warn(
+                "[WebSocket] Disconnected."
+            );
+
+
+            setLiveStatus(
+                false,
+                "DISCONNECTED"
+            );
+
+
+            document.getElementById(
+                "status"
+            ).textContent =
+                "Real-time connection lost. REST polling remains active.";
+
+        }
+    );
+
+
+    socket.on(
+        "connect_error",
+        error => {
+
+            console.error(
+                "[WebSocket] Connection error:",
+                error
+            );
+
+
+            setLiveStatus(
+                false,
+                "ERROR"
+            );
+
+        }
+    );
+
+
+    // =========================================================
+    // REAL-TIME SECURITY EVENT
+    // =========================================================
+
+    socket.on(
+        "security_event",
+        event => {
+
+            console.log(
+                "[WebSocket] Security event received:",
+                event
+            );
+
+
+            // Immediately show the new alert.
+            addLiveAlert(
+                event
+            );
+
+
+            // Update live counters.
+            updateLiveCounters(
+                event
+            );
+
+
+            // Synchronize REST-backed dashboard data.
+            loadEvents();
+
+        }
+    );
+
+
+    // =========================================================
+    // INITIAL LOAD
+    // =========================================================
+
+    loadEvents();
+
+
+    // =========================================================
+    // BACKGROUND REFRESH
+    // =========================================================
+
+    setInterval(
+        loadEvents,
+        10000
+    );
+
+</script>
+
 </body>
+
 </html>
