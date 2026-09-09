@@ -1,8 +1,8 @@
 import re
 from datetime import datetime
 
-from models.event import SecurityEvent
-from data.database import save_event
+from src.models.event import SecurityEvent
+from src.data.database import save_event
 
 BRUTE_FORCE_THRESHOLD = 3
 

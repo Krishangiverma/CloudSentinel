@@ -3,6 +3,7 @@ from pathlib import Path
 
 from src.models.event import SecurityEvent
 from src.data.database import save_event
+from src.ingestion import ingest_event
 
 
 # Ubuntu security log location
@@ -109,6 +110,10 @@ def collect_and_save_events(limit=20):
     # Process latest log entries first
     for log_line in logs[-limit:]:
         event = create_security_event(log_line)
+
+        # Pass every collected event through the canonical
+        # normalization and validation boundary.
+        event = ingest_event(event)
 
         save_event(event)
 
