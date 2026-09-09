@@ -27,6 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.data.database import get_all_events, save_event
 from src.analyzers.risk_engine import analyze_event_risk
+from src.analyzers.attack_correlator import correlate_events
 
 
 # ============================================================
@@ -298,9 +299,54 @@ def api_info():
                 "method": "GET",
                 "path": "/api/stats",
                 "description": "Get event statistics"
+            },
+            {
+                "method": "GET",
+                "path": "/api/incidents",
+                "description": "Get correlated security incidents"
             }
         ]
     })
+
+
+# ============================================================
+# GET CORRELATED SECURITY INCIDENTS
+# ============================================================
+
+@app.route("/api/incidents", methods=["GET"])
+def get_incidents():
+    """Return correlated security events grouped into possible attacks."""
+    try:
+        events = get_all_events()
+
+        analyzed_events = []
+
+        for event in events:
+            event_data = {
+                "id": event[0],
+                "timestamp": event[1],
+                "event_type": event[2],
+                "severity": event[3],
+                "message": event[4],
+                "source": event[5],
+                "ip_address": event[6]
+            }
+
+            analyzed_events.append(analyze_event_risk(event_data))
+
+        attacks = correlate_events(analyzed_events)
+
+        return jsonify({
+            "count": len(attacks),
+            "incidents": attacks
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Failed to correlate security incidents.",
+            "error": str(e)
+        }), 500
 
 
 # ============================================================
@@ -366,6 +412,7 @@ if __name__ == "__main__":
     print("  GET /api/health")
     print("  GET /api/events")
     print("  GET /api/stats")
+    print("  GET /api/incidents")
 
     print()
     print("Starting Flask development server...")
