@@ -319,38 +319,100 @@ def api_info():
 # GET CORRELATED SECURITY INCIDENTS
 # ============================================================
 
+def _build_correlated_incidents():
+    """
+    Build investigation-ready incidents from stored security events.
+
+    The same correlation path is shared by both the collection
+    endpoint and individual incident investigation endpoint.
+    """
+
+    events = get_all_events()
+
+    analyzed_events = []
+
+    for event in events:
+        event_data = {
+            "id": event[0],
+            "timestamp": event[1],
+            "event_type": event[2],
+            "severity": event[3],
+            "message": event[4],
+            "source": event[5],
+            "ip_address": event[6]
+        }
+
+        analyzed_events.append(
+            analyze_event_risk(event_data)
+        )
+
+    return correlate_events(analyzed_events)
+
+
+# ============================================================
+# GET CORRELATED SECURITY INCIDENTS
+# ============================================================
+
 @app.route("/api/incidents", methods=["GET"])
 def get_incidents():
-    """Return correlated security events grouped into possible attacks."""
+    """Return all correlated security incidents."""
+
     try:
-        events = get_all_events()
-
-        analyzed_events = []
-
-        for event in events:
-            event_data = {
-                "id": event[0],
-                "timestamp": event[1],
-                "event_type": event[2],
-                "severity": event[3],
-                "message": event[4],
-                "source": event[5],
-                "ip_address": event[6]
-            }
-
-            analyzed_events.append(analyze_event_risk(event_data))
-
-        attacks = correlate_events(analyzed_events)
+        incidents = _build_correlated_incidents()
 
         return jsonify({
-            "count": len(attacks),
-            "incidents": attacks
+            "count": len(incidents),
+            "incidents": incidents
         })
 
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": "Failed to correlate security incidents.",
+            "error": str(e)
+        }), 500
+
+
+# ============================================================
+# GET INDIVIDUAL SECURITY INCIDENT
+# ============================================================
+
+@app.route("/api/incidents/<incident_id>", methods=["GET"])
+def get_incident(incident_id):
+    """
+    Return one complete correlated security incident.
+
+    Example:
+        GET /api/incidents/INC-0001
+    """
+
+    try:
+        incidents = _build_correlated_incidents()
+
+        normalized_id = str(
+            incident_id
+        ).strip().upper()
+
+        for incident in incidents:
+
+            if incident["incident_id"].upper() == normalized_id:
+
+                return jsonify({
+                    "status": "success",
+                    "incident": incident
+                })
+
+        return jsonify({
+            "status": "error",
+            "message": "Security incident not found.",
+            "incident_id": incident_id
+        }), 404
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve security incident.",
             "error": str(e)
         }), 500
 

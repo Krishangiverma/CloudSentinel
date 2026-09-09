@@ -458,6 +458,241 @@
         }
 
         /* =====================================================
+           INCIDENT INVESTIGATION MODAL
+           ===================================================== */
+
+        .investigation-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 25px;
+            background: rgba(2, 6, 23, 0.82);
+            backdrop-filter: blur(4px);
+        }
+
+        .investigation-modal.open {
+            display: flex;
+        }
+
+        .investigation-panel {
+            width: min(1100px, 96vw);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .investigation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 22px 24px;
+            border-bottom: 1px solid #1f2937;
+        }
+
+        .investigation-title {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .investigation-subtitle {
+            margin-top: 7px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        .investigation-close {
+            border: 0;
+            background: #1e293b;
+            color: #cbd5e1;
+            width: 34px;
+            height: 34px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .investigation-close:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+
+        .investigation-body {
+            padding: 24px;
+        }
+
+        .investigation-summary {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .investigation-card {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .investigation-card-label {
+            display: block;
+            color: #64748b;
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+
+        .investigation-card-value {
+            color: #f8fafc;
+            font-size: 16px;
+            font-weight: bold;
+            word-break: break-word;
+        }
+
+        .investigation-critical {
+            color: #f87171;
+        }
+
+        .investigation-section {
+            margin-top: 25px;
+        }
+
+        .investigation-section h3 {
+            margin: 0 0 13px;
+            font-size: 15px;
+            color: #e2e8f0;
+        }
+
+        .pattern-box {
+            padding: 14px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            color: #f8fafc;
+            font-weight: bold;
+        }
+
+        .event-type-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .event-type-chip {
+            padding: 7px 10px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #cbd5e1;
+            font-size: 12px;
+        }
+
+        .timeline {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .timeline-event {
+            display: grid;
+            grid-template-columns: 175px 1fr auto;
+            gap: 15px;
+            align-items: start;
+            padding: 14px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-left: 3px solid #64748b;
+            border-radius: 7px;
+        }
+
+        .timeline-event.critical {
+            border-left-color: #ef4444;
+        }
+
+        .timeline-event.high {
+            border-left-color: #f97316;
+        }
+
+        .timeline-event.medium {
+            border-left-color: #eab308;
+        }
+
+        .timeline-event.low {
+            border-left-color: #22c55e;
+        }
+
+        .timeline-time {
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        .timeline-type {
+            color: #f8fafc;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .timeline-message {
+            margin-top: 6px;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .timeline-risk {
+            text-align: right;
+            color: #f8fafc;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .investigate-button {
+            padding: 7px 11px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            background: #1e293b;
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .investigate-button:hover {
+            background: #334155;
+            border-color: #64748b;
+        }
+
+        .incident-id {
+            color: #cbd5e1;
+            font-weight: bold;
+        }
+
+        .incident-pattern {
+            color: #94a3b8;
+            font-size: 11px;
+            margin-top: 3px;
+        }
+
+        .investigation-loading,
+        .investigation-error {
+            padding: 40px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+
+        /* =====================================================
            RESPONSIVE
            ===================================================== */
 
@@ -822,11 +1057,13 @@
 
                     <tr>
 
+                        <th>Incident</th>
                         <th>IP Address</th>
                         <th>Events</th>
                         <th>Max Risk</th>
                         <th>Risk Level</th>
                         <th>Status</th>
+                        <th>Action</th>
 
                     </tr>
 
@@ -841,6 +1078,65 @@
         </div>
 
     </section>
+
+</div>
+
+
+<!-- =========================================================
+     INCIDENT INVESTIGATION MODAL
+     ========================================================= -->
+
+<div
+    class="investigation-modal"
+    id="investigation-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="investigation-title"
+>
+
+    <div class="investigation-panel">
+
+        <div class="investigation-header">
+
+            <div>
+                <h2
+                    class="investigation-title"
+                    id="investigation-title"
+                >
+                    Incident Investigation
+                </h2>
+
+                <div
+                    class="investigation-subtitle"
+                    id="investigation-subtitle"
+                >
+                    Loading incident...
+                </div>
+            </div>
+
+            <button
+                class="investigation-close"
+                id="investigation-close"
+                type="button"
+                aria-label="Close investigation"
+            >
+                ×
+            </button>
+
+        </div>
+
+        <div
+            class="investigation-body"
+            id="investigation-body"
+        >
+
+            <div class="investigation-loading">
+                Loading incident investigation...
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 
@@ -1284,6 +1580,497 @@
 
 
     // =========================================================
+    // INCIDENT INVESTIGATION
+    // =========================================================
+
+    function closeInvestigation() {
+
+        const modal =
+            document.getElementById(
+                "investigation-modal"
+            );
+
+        if (modal) {
+            modal.classList.remove("open");
+        }
+
+    }
+
+
+    function renderInvestigation(incident) {
+
+        const body =
+            document.getElementById(
+                "investigation-body"
+            );
+
+        const title =
+            document.getElementById(
+                "investigation-title"
+            );
+
+        const subtitle =
+            document.getElementById(
+                "investigation-subtitle"
+            );
+
+        if (!body) {
+            return;
+        }
+
+        if (title) {
+            title.textContent =
+                `Incident ${incident.incident_id}`;
+        }
+
+        if (subtitle) {
+            subtitle.textContent =
+                incident.attack_pattern ||
+                "MULTI_EVENT_ACTIVITY";
+        }
+
+        const eventTypes =
+            incident.event_types || {};
+
+        const eventTypeHtml =
+            Object.entries(eventTypes)
+                .map(
+                    ([type, count]) => `
+                        <span class="event-type-chip">
+                            ${escapeHtml(type)}
+                            × ${escapeHtml(count)}
+                        </span>
+                    `
+                )
+                .join("");
+
+        const events =
+            Array.isArray(incident.events)
+                ? incident.events
+                : [];
+
+        const timelineHtml =
+            events.length
+                ? events.map(
+                    event => {
+
+                        const severity =
+                            normalizeSeverity(
+                                event.severity
+                            );
+
+                        const risk =
+                            event.risk_score !== null &&
+                            event.risk_score !== undefined
+                                ? event.risk_score
+                                : "—";
+
+                        return `
+                            <div
+                                class="timeline-event ${severityClass(
+                                    severity
+                                )}"
+                            >
+
+                                <div class="timeline-time">
+                                    ${escapeHtml(
+                                        formatTimestamp(
+                                            event.timestamp
+                                        )
+                                    )}
+                                </div>
+
+                                <div>
+
+                                    <div class="timeline-type">
+                                        ${escapeHtml(
+                                            event.event_type ||
+                                            "UNKNOWN"
+                                        )}
+                                    </div>
+
+                                    <div class="timeline-message">
+                                        ${escapeHtml(
+                                            event.message ||
+                                            "No message available"
+                                        )}
+                                    </div>
+
+                                </div>
+
+                                <div class="timeline-risk">
+                                    ${escapeHtml(
+                                        severity
+                                    )}
+                                    <br>
+                                    Risk ${escapeHtml(
+                                        risk
+                                    )}/100
+                                </div>
+
+                            </div>
+                        `;
+                    }
+                ).join("")
+                : `
+                    <div class="investigation-error">
+                        No correlated events available.
+                    </div>
+                `;
+
+        body.innerHTML = `
+
+            <div class="investigation-summary">
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Risk Level
+                    </span>
+
+                    <span
+                        class="investigation-card-value investigation-critical"
+                    >
+                        ${escapeHtml(
+                            incident.risk_level
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Maximum Risk
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            incident.max_risk_score
+                        )} / 100
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Source IP
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            incident.ip_address
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Event Count
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            incident.event_count
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Status
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            incident.status
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        First Seen
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            formatTimestamp(
+                                incident.first_seen
+                            )
+                        )}
+                    </span>
+
+                </div>
+
+
+                <div class="investigation-card">
+
+                    <span class="investigation-card-label">
+                        Last Seen
+                    </span>
+
+                    <span class="investigation-card-value">
+                        ${escapeHtml(
+                            formatTimestamp(
+                                incident.last_seen
+                            )
+                        )}
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="investigation-section">
+
+                <h3>
+                    Attack Pattern
+                </h3>
+
+                <div class="pattern-box">
+                    ${escapeHtml(
+                        incident.attack_pattern ||
+                        "MULTI_EVENT_ACTIVITY"
+                    )}
+                </div>
+
+            </div>
+
+
+            <div class="investigation-section">
+
+                <h3>
+                    Event Type Breakdown
+                </h3>
+
+                <div class="event-type-list">
+                    ${
+                        eventTypeHtml ||
+                        '<span class="event-type-chip">No event types</span>'
+                    }
+                </div>
+
+            </div>
+
+
+            <div class="investigation-section">
+
+                <h3>
+                    Attack Timeline
+                    (${escapeHtml(events.length)} events)
+                </h3>
+
+                <div class="timeline">
+                    ${timelineHtml}
+                </div>
+
+            </div>
+
+        `;
+    }
+
+
+    async function openInvestigation(
+        incidentId
+    ) {
+
+        const modal =
+            document.getElementById(
+                "investigation-modal"
+            );
+
+        const body =
+            document.getElementById(
+                "investigation-body"
+            );
+
+        const title =
+            document.getElementById(
+                "investigation-title"
+            );
+
+        const subtitle =
+            document.getElementById(
+                "investigation-subtitle"
+            );
+
+        if (!modal || !body) {
+            return;
+        }
+
+        modal.classList.add("open");
+
+        if (title) {
+            title.textContent =
+                `Incident ${incidentId}`;
+        }
+
+        if (subtitle) {
+            subtitle.textContent =
+                "Loading investigation...";
+        }
+
+        body.innerHTML = `
+            <div class="investigation-loading">
+                Loading incident investigation...
+            </div>
+        `;
+
+        try {
+
+            const response =
+                await fetch(
+                    `/api/incidents/${encodeURIComponent(
+                        incidentId
+                    )}`
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.message ||
+                    "Unable to retrieve incident."
+                );
+
+            }
+
+            renderInvestigation(
+                data.incident
+            );
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "[Dashboard] Investigation error:",
+                error
+            );
+
+            body.innerHTML = `
+                <div class="investigation-error">
+                    Unable to load incident investigation.
+                    <br>
+                    ${escapeHtml(
+                        error.message
+                    )}
+                </div>
+            `;
+
+        }
+
+    }
+
+
+    function initializeInvestigationControls() {
+
+        const incidentsTable =
+            document.getElementById(
+                "incidents-table"
+            );
+
+        const closeButton =
+            document.getElementById(
+                "investigation-close"
+            );
+
+        const modal =
+            document.getElementById(
+                "investigation-modal"
+            );
+
+        if (incidentsTable) {
+
+            incidentsTable.addEventListener(
+                "click",
+                event => {
+
+                    const button =
+                        event.target.closest(
+                            ".investigate-button"
+                        );
+
+                    if (!button) {
+                        return;
+                    }
+
+                    const incidentId =
+                        button.dataset.incidentId;
+
+                    if (incidentId) {
+
+                        openInvestigation(
+                            incidentId
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+        if (closeButton) {
+
+            closeButton.addEventListener(
+                "click",
+                closeInvestigation
+            );
+
+        }
+
+        if (modal) {
+
+            modal.addEventListener(
+                "click",
+                event => {
+
+                    if (
+                        event.target === modal
+                    ) {
+                        closeInvestigation();
+                    }
+
+                }
+            );
+
+        }
+
+        document.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key === "Escape"
+                ) {
+                    closeInvestigation();
+                }
+
+            }
+        );
+
+    }
+
+
+
+    // =========================================================
     // LOAD REST EVENTS
     // =========================================================
 
@@ -1669,7 +2456,7 @@
                         <tr>
 
                             <td
-                                colspan="5"
+                                colspan="7"
                                 class="incident-empty"
                             >
                                 No correlated incidents detected.
@@ -1695,6 +2482,21 @@
                             row.innerHTML = `
 
                                 <td>
+                                    <div class="incident-id">
+                                        ${escapeHtml(
+                                            incident.incident_id
+                                        )}
+                                    </div>
+
+                                    <div class="incident-pattern">
+                                        ${escapeHtml(
+                                            incident.attack_pattern ||
+                                            "MULTI_EVENT_ACTIVITY"
+                                        )}
+                                    </div>
+                                </td>
+
+                                <td>
                                     ${escapeHtml(
                                         incident.ip_address
                                     )}
@@ -1707,9 +2509,11 @@
                                 </td>
 
                                 <td>
-                                    ${escapeHtml(
-                                        incident.max_risk_score
-                                    )}
+                                    <strong>
+                                        ${escapeHtml(
+                                            incident.max_risk_score
+                                        )}/100
+                                    </strong>
                                 </td>
 
                                 <td class="incident-critical">
@@ -1722,6 +2526,18 @@
                                     ${escapeHtml(
                                         incident.status
                                     )}
+                                </td>
+
+                                <td>
+                                    <button
+                                        type="button"
+                                        class="investigate-button"
+                                        data-incident-id="${escapeHtml(
+                                            incident.incident_id
+                                        )}"
+                                    >
+                                        INVESTIGATE
+                                    </button>
                                 </td>
 
                             `;
@@ -1762,6 +2578,10 @@
         }
 
     }
+
+
+    initializeInvestigationControls();
+
 
 
     // =========================================================
