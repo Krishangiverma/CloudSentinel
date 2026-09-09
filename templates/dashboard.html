@@ -280,6 +280,8 @@
 
 </div>
 
+<script src="/static/socket.io.min.js"></script>
+
 <script>
 
 async function loadEvents() {
@@ -473,6 +475,46 @@ async function loadEvents() {
 
     }
 }
+
+
+
+// ============================================================
+// REAL-TIME WEBSOCKET CONNECTION
+// ============================================================
+
+const socket = io({ transports: ["polling"], upgrade: false });
+
+socket.on("connect", () => {
+    console.log("[WebSocket] Connected:", socket.id);
+
+    document.getElementById("status").textContent =
+        "Real-time connection established.";
+});
+
+
+socket.on("disconnect", () => {
+    console.warn("[WebSocket] Disconnected.");
+
+    document.getElementById("status").textContent =
+        "Real-time connection lost. REST polling remains active.";
+});
+
+
+socket.on("connect_error", (error) => {
+    console.error("[WebSocket] Connection error:", error);
+
+    document.getElementById("status").textContent =
+        "Real-time connection error. REST polling remains active.";
+});
+
+
+socket.on("security_event", (event) => {
+    console.log("[WebSocket] Security event received:", event);
+
+    // Reload the dashboard data immediately so the new event,
+    // statistics, risk distribution and incidents stay consistent.
+    loadEvents();
+});
 
 
 // Load events when page opens

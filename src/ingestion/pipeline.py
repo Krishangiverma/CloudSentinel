@@ -11,6 +11,7 @@ Raw Event
 
 from src.ingestion.normalizer import normalize_event
 from src.ingestion.validator import validate_event
+from src.realtime.event_bus import publish
 
 
 class EventPipeline:
@@ -42,6 +43,9 @@ class EventPipeline:
             raise
 
         self.events_processed += 1
+
+        # Publish only successfully normalized and validated events.
+        publish(event)
 
         return event
 

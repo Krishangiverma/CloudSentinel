@@ -28,6 +28,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.data.database import get_all_events, save_event
 from src.analyzers.risk_engine import analyze_event_risk
 from src.analyzers.attack_correlator import correlate_events
+from src.api.websocket import socketio
+from src.ingestion import ingest_event
 
 
 # ============================================================
@@ -35,6 +37,9 @@ from src.analyzers.attack_correlator import correlate_events
 # ============================================================
 
 app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"))
+
+# Initialize WebSocket infrastructure
+socketio.init_app(app)
 
 
 # ============================================================
@@ -236,7 +241,7 @@ def create_event():
             "ip_address": data.get("ip_address", "N/A")
         }
 
-        save_event(event)
+        ingest_event(event)
 
         return jsonify({
             "status": "success",
@@ -418,8 +423,10 @@ if __name__ == "__main__":
     print("Starting Flask development server...")
     print("=" * 60)
 
-    app.run(
+    socketio.run(
+        app,
         host="0.0.0.0",
         port=5000,
-        debug=True
+        debug=False,
+        allow_unsafe_werkzeug=True
     )
