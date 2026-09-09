@@ -1,14 +1,18 @@
 """
-CloudSentinel Alert Manager
+CloudSentinel Alert Manager.
 
-Responsible for converting security events into alerts
-and storing them in the CloudSentinel database.
+Responsible for converting security events into alerts,
+storing them in the CloudSentinel database, suppressing
+recent duplicates, and providing backward-compatible
+helpers for the legacy alert API.
 """
 
 from datetime import datetime, timedelta
 
-from src.data.database import save_alert, find_recent_duplicate_alert
+from src.data.database import save_alert as database_save_alert
+from src.data.database import find_recent_duplicate_alert
 from src.notification_manager import send_notification
+from src.analyzers.risk_engine import calculate_risk_score
 
 
 class AlertManager:
@@ -21,9 +25,22 @@ class AlertManager:
         self.suppression_window = timedelta(minutes=5)
 
     def is_duplicate(self, event_type, ip_address):
-        """Check whether the same event type and IP alerted recently."""
-        since = (datetime.now() - self.suppression_window).isoformat()
-        return find_recent_duplicate_alert(event_type, ip_address, since) is not None
+        """
+        Check whether the same event type and IP alerted recently.
+        """
+
+        since = (
+            datetime.now() - self.suppression_window
+        ).isoformat()
+
+        return (
+            find_recent_duplicate_alert(
+                event_type,
+                ip_address,
+                since,
+            )
+            is not None
+        )
 
     def create_alert(self, event):
         """
@@ -34,22 +51,93 @@ class AlertManager:
         """
 
         if isinstance(event, dict):
-            event_type = event.get("event_type", "UNKNOWN")
-            severity = event.get("severity", "INFO")
-            message = event.get("message", "No message")
-            ip_address = event.get("ip_address", "N/A")
+
+            event_type = event.get(
+                "event_type",
+                "UNKNOWN",
+            )
+
+            severity = event.get(
+                "severity",
+                "INFO",
+            )
+
+            message = event.get(
+                "message",
+                "No message",
+            )
+
+            ip_address = event.get(
+                "ip_address",
+                event.get("ip", "N/A"),
+            )
+
+            risk_score = event.get(
+                "risk_score"
+            )
+
+            risk_level = event.get(
+                "risk_level"
+            )
 
         else:
-            event_type = getattr(event, "event_type", "UNKNOWN")
-            severity = getattr(event, "severity", "INFO")
-            message = getattr(event, "message", "No message")
-            ip_address = getattr(event, "ip_address", "N/A")
+
+            event_type = getattr(
+                event,
+                "event_type",
+                "UNKNOWN",
+            )
+
+            severity = getattr(
+                event,
+                "severity",
+                "INFO",
+            )
+
+            message = getattr(
+                event,
+                "message",
+                "No message",
+            )
+
+            ip_address = getattr(
+                event,
+                "ip_address",
+                "N/A",
+            )
+
+            risk_score = getattr(
+                event,
+                "risk_score",
+                None,
+            )
+
+            risk_level = getattr(
+                event,
+                "risk_level",
+                None,
+            )
+
+        # Calculate risk if the event has not already been enriched.
+        if risk_score is None:
+
+            risk = calculate_risk_score(
+                {
+                    "severity": severity,
+                    "event_type": event_type,
+                }
+            )
+
+            risk_score = risk["risk_score"]
+            risk_level = risk["risk_level"]
 
         alert = {
             "event_type": event_type,
             "severity": severity,
             "message": message,
             "ip_address": ip_address,
+            "risk_score": risk_score,
+            "risk_level": risk_level,
         }
 
         return alert
@@ -62,14 +150,20 @@ class AlertManager:
 
         alert = self.create_alert(event)
 
-        if self.is_duplicate(alert["event_type"], alert["ip_address"]):
+        if self.is_duplicate(
+            alert["event_type"],
+            alert["ip_address"],
+        ):
+
             print(
                 f"[AlertManager] Alert suppressed: "
-                f"{alert['event_type']} | IP={alert['ip_address']}"
+                f"{alert['event_type']} | "
+                f"IP={alert['ip_address']}"
             )
+
             return None
 
-        save_alert(alert)
+        database_save_alert(alert)
 
         self.alert_count += 1
 
@@ -85,9 +179,16 @@ class AlertManager:
         return self.process_alert(event)
 
 
-# Global AlertManager instance
+# ============================================================
+# GLOBAL ALERT MANAGER
+# ============================================================
+
 manager = AlertManager()
 
+
+# ============================================================
+# CURRENT API
+# ============================================================
 
 def process_alert(event):
     """
@@ -105,6 +206,183 @@ def process_event(event):
     return manager.process_event(event)
 
 
+# ============================================================
+# LEGACY COMPATIBILITY API
+# ============================================================
+
+def calculate_risk(event):
+    """
+    Backward-compatible risk calculation helper.
+
+    Delegates to the canonical CloudSentinel risk engine.
+
+    Returns:
+        int: risk score from 0 to 100.
+    """
+
+    if isinstance(event, dict):
+
+        event_data = {
+            "severity": event.get(
+                "severity",
+                "LOW",
+            ),
+            "event_type": event.get(
+                "event_type",
+                "",
+            ),
+        }
+
+    else:
+
+        event_data = {
+            "severity": getattr(
+                event,
+                "severity",
+                "LOW",
+            ),
+            "event_type": getattr(
+                event,
+                "event_type",
+                "",
+            ),
+        }
+
+    return calculate_risk_score(event_data)["risk_score"]
+
+
+def get_priority(risk_score):
+    """
+    Convert a numerical risk score into an alert priority.
+
+    Backward-compatible priority mapping.
+    """
+
+    try:
+        score = float(risk_score)
+    except (TypeError, ValueError):
+        score = 0
+
+    if score >= 80:
+        return "CRITICAL"
+
+    if score >= 60:
+        return "HIGH"
+
+    if score >= 35:
+        return "MEDIUM"
+
+    return "LOW"
+
+
+def generate_alert(event):
+    """
+    Backward-compatible alert generation helper.
+
+    Uses the current AlertManager implementation.
+    """
+
+    return manager.create_alert(event)
+
+
+def process_alerts(events):
+    """
+    Process multiple security events.
+
+    Returns:
+        list of successfully generated alerts.
+
+    Suppressed duplicate alerts are excluded.
+    """
+
+    alerts = []
+
+    for event in events:
+
+        alert = manager.process_alert(event)
+
+        if alert is not None:
+            alerts.append(alert)
+
+    return alerts
+
+
+def format_alert(alert):
+    """
+    Format an alert for readable terminal output.
+    """
+
+    if not isinstance(alert, dict):
+        return str(alert)
+
+    event_type = alert.get(
+        "event_type",
+        "UNKNOWN",
+    )
+
+    severity = alert.get(
+        "severity",
+        "INFO",
+    )
+
+    message = alert.get(
+        "message",
+        "No message",
+    )
+
+    ip_address = alert.get(
+        "ip_address",
+        "N/A",
+    )
+
+    risk_score = alert.get(
+        "risk_score"
+    )
+
+    risk_level = alert.get(
+        "risk_level"
+    )
+
+    lines = [
+        "==============================================",
+        "CloudSentinel Security Alert",
+        "==============================================",
+        f"Event Type : {event_type}",
+        f"Severity   : {severity}",
+        f"Risk Score : {risk_score}",
+        f"Risk Level : {risk_level}",
+        f"IP Address : {ip_address}",
+        f"Message    : {message}",
+        "==============================================",
+    ]
+
+    return "\n".join(lines)
+
+
+def save_alerts(alerts):
+    """
+    Backward-compatible helper for saving multiple alerts.
+
+    Alerts are passed through the current database layer.
+    """
+
+    saved = 0
+
+    for alert in alerts:
+
+        if not isinstance(alert, dict):
+            continue
+
+        database_save_alert(alert)
+        saved += 1
+
+    return saved
+
+
+# ============================================================
+# DIRECT MODULE TEST
+# ============================================================
+
 if __name__ == "__main__":
 
     print("=" * 60)
@@ -114,7 +392,9 @@ if __name__ == "__main__":
     test_event = {
         "event_type": "BRUTE_FORCE",
         "severity": "HIGH",
-        "message": "Multiple failed login attempts detected",
+        "message": (
+            "Multiple failed login attempts detected"
+        ),
         "ip_address": "192.168.1.100",
     }
 
@@ -124,6 +404,8 @@ if __name__ == "__main__":
 
     print(f"Event Type : {alert['event_type']}")
     print(f"Severity   : {alert['severity']}")
+    print(f"Risk Score : {alert['risk_score']}")
+    print(f"Risk Level : {alert['risk_level']}")
     print(f"Message    : {alert['message']}")
     print(f"IP Address : {alert['ip_address']}")
 
@@ -132,6 +414,9 @@ if __name__ == "__main__":
     saved_alert = manager.process_alert(test_event)
 
     print("\n[STEP 3] Alert processed successfully.")
-    print(f"Total Alerts Processed: {manager.alert_count}")
+    print(
+        f"Total Alerts Processed: "
+        f"{manager.alert_count}"
+    )
 
     print("\n" + "=" * 60)

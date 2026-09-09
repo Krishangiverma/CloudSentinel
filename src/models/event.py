@@ -26,6 +26,8 @@ class SecurityEvent:
     Optional:
 
         ip_address
+        risk_score
+        risk_level
     """
 
     timestamp: datetime
@@ -35,6 +37,7 @@ class SecurityEvent:
     source: str = "UNKNOWN"
     ip_address: str = "N/A"
     risk_score: int | float | None = None
+    risk_level: str | None = None
 
     def __post_init__(self):
         """
@@ -47,6 +50,9 @@ class SecurityEvent:
         self.source = str(self.source).strip()
         self.ip_address = str(self.ip_address).strip()
 
+        if self.risk_level is not None:
+            self.risk_level = str(self.risk_level).strip().upper()
+
     def __str__(self):
         return (
             f"[{self.severity}] "
@@ -54,6 +60,8 @@ class SecurityEvent:
             f"{self.timestamp} | "
             f"{self.source} | "
             f"IP={self.ip_address} | "
+            f"Risk={self.risk_score} "
+            f"({self.risk_level}) | "
             f"{self.message}"
         )
 

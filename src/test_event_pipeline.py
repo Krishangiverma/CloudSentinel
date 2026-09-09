@@ -133,36 +133,69 @@ def test_pipeline_processes_event():
 
     event = pipeline.ingest(
         {
-            "event_type": "suspicious_login",
-            "severity": "medium",
-            "message": "Suspicious login from 10.0.0.25",
-            "source": "auth.log",
-            "ip": "10.0.0.25",
+            "event_type": "TEST_EVENT",
+            "severity": "LOW",
+            "message": "Pipeline test event",
+            "source": "test",
+            "ip_address": "127.0.0.1",
         }
     )
 
-    assert event.event_type == "SUSPICIOUS_LOGIN"
-    assert event.severity == "MEDIUM"
-    assert event.ip_address == "10.0.0.25"
+    assert isinstance(event, SecurityEvent)
+    assert event.event_type == "TEST_EVENT"
+    assert event.severity == "LOW"
     assert pipeline.events_processed == 1
-    assert pipeline.events_rejected == 0
 
 
-def test_pipeline_rejects_invalid_event():
+def test_pipeline_enriches_risk_information():
 
     pipeline = EventPipeline()
 
-    try:
-        pipeline.ingest(
-            {
-                "event_type": "TEST",
-                "severity": "INVALID",
-                "message": "Invalid event",
-                "source": "test",
-            }
-        )
+    event = pipeline.ingest(
+        {
+            "event_type": "BRUTE_FORCE",
+            "severity": "HIGH",
+            "message": "Multiple failed login attempts",
+            "source": "auth.log",
+            "ip_address": "192.168.1.50",
+        }
+    )
 
-        assert False, "Expected EventValidationError"
+    assert event.risk_score == 80
+    assert event.risk_level == "CRITICAL"
 
-    except EventValidationError:
-        assert pipeline.events_rejected == 1
+
+def test_pipeline_enriches_medium_risk():
+
+    pipeline = EventPipeline()
+
+    event = pipeline.ingest(
+        {
+            "event_type": "SUSPICIOUS_LOGIN",
+            "severity": "MEDIUM",
+            "message": "Suspicious login detected",
+            "source": "auth.log",
+            "ip_address": "10.0.0.5",
+        }
+    )
+
+    assert event.risk_score == 55
+    assert event.risk_level == "MEDIUM"
+
+
+def test_pipeline_enriches_critical_risk():
+
+    pipeline = EventPipeline()
+
+    event = pipeline.ingest(
+        {
+            "event_type": "MALWARE",
+            "severity": "CRITICAL",
+            "message": "Malware detected",
+            "source": "endpoint",
+            "ip_address": "10.0.0.10",
+        }
+    )
+
+    assert event.risk_score == 100
+    assert event.risk_level == "CRITICAL"

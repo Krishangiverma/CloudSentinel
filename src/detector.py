@@ -1,6 +1,13 @@
+"""
+CloudSentinel Detection Engine.
+
+Detects suspicious activity from security log entries
+and provides backward-compatible helpers for the
+legacy detection API.
+"""
+
 import re
 from collections import defaultdict
-from datetime import datetime
 
 
 def extract_ip(log_line):
@@ -9,12 +16,18 @@ def extract_ip(log_line):
     """
 
     if isinstance(log_line, dict):
-        log_line = log_line.get("message", "")
+        log_line = log_line.get(
+            "message",
+            "",
+        )
 
     if not isinstance(log_line, str):
         return None
 
-    match = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", log_line)
+    match = re.search(
+        r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+        log_line,
+    )
 
     if match:
         return match.group(0)
@@ -24,12 +37,17 @@ def extract_ip(log_line):
 
 def _get_message(log_entry):
     """
-    Convert both old string-format logs and new dictionary-format
-    logs into a single message string.
+    Convert both old string-format logs and new
+    dictionary-format logs into one message string.
     """
 
     if isinstance(log_entry, dict):
-        return str(log_entry.get("message", ""))
+        return str(
+            log_entry.get(
+                "message",
+                "",
+            )
+        )
 
     return str(log_entry)
 
@@ -40,7 +58,10 @@ def _get_source(log_entry):
     """
 
     if isinstance(log_entry, dict):
-        return log_entry.get("source", "unknown")
+        return log_entry.get(
+            "source",
+            "unknown",
+        )
 
     return "unknown"
 
@@ -89,7 +110,7 @@ def _detect_brute_force(log_entries):
     """
     Detect repeated failed login attempts from the same IP.
 
-    Current threshold:
+    Threshold:
         3 or more failed attempts = BRUTE_FORCE / HIGH
     """
 
@@ -123,8 +144,8 @@ def _detect_brute_force(log_entries):
                     "event_type": "BRUTE_FORCE",
                     "severity": "HIGH",
                     "message": (
-                        f"Brute-force attack detected from {ip}: "
-                        f"{len(attempts)} failed attempts"
+                        f"Brute-force attack detected from "
+                        f"{ip}: {len(attempts)} failed attempts"
                     ),
                     "source": "CloudSentinel",
                     "ip": ip,
@@ -193,7 +214,6 @@ def detect_suspicious_events(logs):
     # ---------------------------------------------------------
 
     unique_events = []
-
     seen = set()
 
     for event in events:
@@ -206,6 +226,7 @@ def detect_suspicious_events(logs):
         )
 
         if key not in seen:
+
             seen.add(key)
             unique_events.append(event)
 
@@ -214,54 +235,29 @@ def detect_suspicious_events(logs):
 
 def analyze_logs(logs):
     """
-    Backward-compatible wrapper.
-
-    Some older CloudSentinel code may call analyze_logs().
+    Backward-compatible wrapper around the current
+    detection engine.
     """
 
     return detect_suspicious_events(logs)
 
 
-def get_event_statistics(events):
+def detect_suspicious_event(event):
     """
-    Generate simple statistics from detected security events.
+    Legacy singular-event compatibility wrapper.
+
+    Older CloudSentinel code expects:
+
+        detect_suspicious_event(event)
+
+    The current detector operates on a list, so this wrapper
+    analyzes one event and returns the first detected event,
+    or None when the event is not suspicious.
     """
 
-    statistics = {
-        "total_events": len(events),
-        "high": 0,
-        "medium": 0,
-        "low": 0,
-        "brute_force": 0,
-        "suspicious_activity": 0,
-        "sudo_activity": 0,
-        "security_log": 0,
-    }
+    detected = detect_suspicious_events([event])
 
-    for event in events:
+    if detected:
+        return detected[0]
 
-        severity = event.get("severity", "").lower()
-        event_type = event.get("event_type", "").lower()
-
-        if severity == "high":
-            statistics["high"] += 1
-
-        elif severity == "medium":
-            statistics["medium"] += 1
-
-        elif severity == "low":
-            statistics["low"] += 1
-
-        if event_type == "brute_force":
-            statistics["brute_force"] += 1
-
-        elif event_type == "suspicious_activity":
-            statistics["suspicious_activity"] += 1
-
-        elif event_type == "sudo_activity":
-            statistics["sudo_activity"] += 1
-
-        elif event_type == "security_log":
-            statistics["security_log"] += 1
-
-    return statistics
+    return None
