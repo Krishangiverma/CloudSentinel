@@ -136,7 +136,76 @@
                 overflow-x: auto;
             }
         }
-    </style>
+    
+        .incidents-section {
+            margin-top: 30px;
+        }
+
+        .incident-critical {
+            color: #f87171;
+            font-weight: bold;
+        }
+
+        .incident-status {
+            color: #fbbf24;
+            font-weight: bold;
+        }
+
+        .incident-empty {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.7;
+        }
+
+
+        .risk-section {
+            margin-top: 30px;
+        }
+
+        .risk-bars {
+            display: grid;
+            gap: 14px;
+            margin-top: 20px;
+        }
+
+        .risk-row {
+            display: grid;
+            grid-template-columns: 100px 1fr 50px;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .risk-bar-container {
+            height: 18px;
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .risk-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 8px;
+            transition: width 0.5s ease;
+        }
+
+        .risk-critical {
+            background: #ef4444;
+        }
+
+        .risk-high {
+            background: #f97316;
+        }
+
+        .risk-medium {
+            background: #eab308;
+        }
+
+        .risk-low {
+            background: #22c55e;
+        }
+
+</style>
 </head>
 
 <body>
@@ -168,6 +237,16 @@
         <div class="card">
             <h3>Low Severity</h3>
             <div class="number low" id="low-events">0</div>
+        </div>
+
+        <div class="card">
+            <h3>Average Risk</h3>
+            <div class="number" id="average-risk">0</div>
+        </div>
+
+        <div class="card">
+            <h3>Critical Incidents</h3>
+            <div class="number high" id="critical-incidents">0</div>
         </div>
 
     </div>
@@ -220,6 +299,112 @@ async function loadEvents() {
         // Update total
         document.getElementById("total-events").textContent =
             events.length;
+
+        // Load risk statistics
+        const statsResponse = await fetch("/api/stats");
+
+        if (statsResponse.ok) {
+            const stats = await statsResponse.json();
+
+            const averageRisk =
+                stats.risk?.average_score ?? 0;
+
+            document.getElementById("average-risk").textContent =
+                averageRisk;
+
+            // Update risk distribution bars
+            const riskLevels = stats.risk?.levels || {};
+
+            const criticalCount = riskLevels.CRITICAL || 0;
+            const highCount = riskLevels.HIGH || 0;
+            const mediumCount = riskLevels.MEDIUM || 0;
+            const lowCount = riskLevels.LOW || 0;
+
+            const totalRiskEvents =
+                criticalCount +
+                highCount +
+                mediumCount +
+                lowCount;
+
+            document.getElementById("risk-critical-count").textContent =
+                criticalCount;
+
+            document.getElementById("risk-high-count").textContent =
+                highCount;
+
+            document.getElementById("risk-medium-count").textContent =
+                mediumCount;
+
+            document.getElementById("risk-low-count").textContent =
+                lowCount;
+
+            if (totalRiskEvents > 0) {
+                document.getElementById("risk-critical-bar").style.width =
+                    `${(criticalCount / totalRiskEvents) * 100}%`;
+
+                document.getElementById("risk-high-bar").style.width =
+                    `${(highCount / totalRiskEvents) * 100}%`;
+
+                document.getElementById("risk-medium-bar").style.width =
+                    `${(mediumCount / totalRiskEvents) * 100}%`;
+
+                document.getElementById("risk-low-bar").style.width =
+                    `${(lowCount / totalRiskEvents) * 100}%`;
+            }
+
+            // Load correlated incidents
+            const incidentsResponse =
+                await fetch("/api/incidents");
+
+            if (incidentsResponse.ok) {
+                const incidentData =
+                    await incidentsResponse.json();
+
+                const criticalIncidents =
+                    (incidentData.incidents || []).filter(
+                        incident => incident.risk_level === "CRITICAL"
+                    ).length;
+
+                document.getElementById("critical-incidents").textContent =
+                    criticalIncidents;
+
+                // Populate correlated incidents table
+                const incidentsTable =
+                    document.getElementById("incidents-table");
+
+                incidentsTable.innerHTML = "";
+
+                const incidents = incidentData.incidents || [];
+
+                if (incidents.length === 0) {
+                    incidentsTable.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="incident-empty">
+                                No correlated incidents detected.
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    incidents.forEach(incident => {
+                        const row = document.createElement("tr");
+
+                        row.innerHTML = `
+                            <td>${incident.ip_address}</td>
+                            <td>${incident.event_count}</td>
+                            <td>${incident.max_risk_score}</td>
+                            <td class="incident-critical">
+                                ${incident.risk_level}
+                            </td>
+                            <td class="incident-status">
+                                ${incident.status}
+                            </td>
+                        `;
+
+                        incidentsTable.appendChild(row);
+                    });
+                }
+            }
+        }
 
         // Count severities
         const high = events.filter(
@@ -298,6 +483,76 @@ loadEvents();
 setInterval(loadEvents, 10000);
 
 </script>
+
+
+    <section class="incidents-section">
+        <h2>Correlated Security Incidents</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Source IP</th>
+                    <th>Events</th>
+                    <th>Max Risk</th>
+                    <th>Risk Level</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody id="incidents-table">
+                <tr>
+                    <td colspan="5" class="incident-empty">
+                        Loading incidents...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+
+    <section class="risk-section">
+        <h2>Risk Distribution</h2>
+
+        <div class="risk-bars" id="risk-distribution">
+
+            <div class="risk-row">
+                <strong>Critical</strong>
+                <div class="risk-bar-container">
+                    <div class="risk-bar risk-critical"
+                         id="risk-critical-bar"></div>
+                </div>
+                <span id="risk-critical-count">0</span>
+            </div>
+
+            <div class="risk-row">
+                <strong>High</strong>
+                <div class="risk-bar-container">
+                    <div class="risk-bar risk-high"
+                         id="risk-high-bar"></div>
+                </div>
+                <span id="risk-high-count">0</span>
+            </div>
+
+            <div class="risk-row">
+                <strong>Medium</strong>
+                <div class="risk-bar-container">
+                    <div class="risk-bar risk-medium"
+                         id="risk-medium-bar"></div>
+                </div>
+                <span id="risk-medium-count">0</span>
+            </div>
+
+            <div class="risk-row">
+                <strong>Low</strong>
+                <div class="risk-bar-container">
+                    <div class="risk-bar risk-low"
+                         id="risk-low-bar"></div>
+                </div>
+                <span id="risk-low-count">0</span>
+            </div>
+
+        </div>
+    </section>
 
 </body>
 </html>
