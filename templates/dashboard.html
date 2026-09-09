@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CloudSentinel Security Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 30px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        header {
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #94a3b8;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+
+        .card h3 {
+            color: #94a3b8;
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+
+        .card .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .events-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 25px;
+        }
+
+        .events-section h2 {
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+
+        th {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        td {
+            font-size: 14px;
+        }
+
+        .severity {
+            font-weight: bold;
+        }
+
+        .high {
+            color: #ef4444;
+        }
+
+        .medium {
+            color: #f59e0b;
+        }
+
+        .low {
+            color: #22c55e;
+        }
+
+        .status {
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        @media (max-width: 900px) {
+            .cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            body {
+                padding: 15px;
+            }
+
+            .events-section {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <header>
+        <h1>🛡️ CloudSentinel</h1>
+        <p>Security Monitoring Dashboard</p>
+    </header>
+
+    <div class="cards">
+
+        <div class="card">
+            <h3>Total Events</h3>
+            <div class="number" id="total-events">0</div>
+        </div>
+
+        <div class="card">
+            <h3>High Severity</h3>
+            <div class="number high" id="high-events">0</div>
+        </div>
+
+        <div class="card">
+            <h3>Medium Severity</h3>
+            <div class="number medium" id="medium-events">0</div>
+        </div>
+
+        <div class="card">
+            <h3>Low Severity</h3>
+            <div class="number low" id="low-events">0</div>
+        </div>
+
+    </div>
+
+    <div class="events-section">
+
+        <h2>Security Events</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Event Type</th>
+                    <th>Severity</th>
+                    <th>Message</th>
+                    <th>Source</th>
+                    <th>IP Address</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+
+            <tbody id="events-table">
+            </tbody>
+        </table>
+
+        <div class="status" id="status">
+            Loading security events...
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+async function loadEvents() {
+
+    try {
+
+        const response = await fetch("/api/events");
+
+        if (!response.ok) {
+            throw new Error("API request failed");
+        }
+
+        const data = await response.json();
+
+        const events = data.events || [];
+
+        // Update total
+        document.getElementById("total-events").textContent =
+            events.length;
+
+        // Count severities
+        const high = events.filter(
+            event => event.severity === "HIGH"
+        ).length;
+
+        const medium = events.filter(
+            event => event.severity === "MEDIUM"
+        ).length;
+
+        const low = events.filter(
+            event => event.severity === "LOW"
+        ).length;
+
+        document.getElementById("high-events").textContent = high;
+        document.getElementById("medium-events").textContent = medium;
+        document.getElementById("low-events").textContent = low;
+
+        // Table
+        const table = document.getElementById("events-table");
+
+        table.innerHTML = "";
+
+        events.forEach(event => {
+
+            const row = document.createElement("tr");
+
+            let severityClass = "";
+
+            if (event.severity === "HIGH") {
+                severityClass = "high";
+            }
+            else if (event.severity === "MEDIUM") {
+                severityClass = "medium";
+            }
+            else if (event.severity === "LOW") {
+                severityClass = "low";
+            }
+
+            row.innerHTML = `
+                <td>${event.id}</td>
+                <td>${event.event_type}</td>
+                <td class="severity ${severityClass}">
+                    ${event.severity}
+                </td>
+                <td>${event.message}</td>
+                <td>${event.source}</td>
+                <td>${event.ip_address}</td>
+                <td>${event.timestamp}</td>
+            `;
+
+            table.appendChild(row);
+        });
+
+        document.getElementById("status").textContent =
+            `Loaded ${events.length} security event(s).`;
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        document.getElementById("status").textContent =
+            "Unable to load security events.";
+
+    }
+}
+
+
+// Load events when page opens
+loadEvents();
+
+
+// Refresh every 10 seconds
+setInterval(loadEvents, 10000);
+
+</script>
+
+</body>
+</html>
