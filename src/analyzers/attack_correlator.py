@@ -74,6 +74,7 @@ def _normalize_iocs(iocs):
 
     ips = iocs.get("ips", [])
     domains = iocs.get("domains", [])
+    urls = iocs.get("urls", [])
     hashes = iocs.get("hashes", {})
 
     if not isinstance(ips, list):
@@ -81,6 +82,9 @@ def _normalize_iocs(iocs):
 
     if not isinstance(domains, list):
         domains = []
+
+    if not isinstance(urls, list):
+        urls = []
 
     if not isinstance(hashes, dict):
         hashes = {}
@@ -101,6 +105,7 @@ def _normalize_iocs(iocs):
     return {
         "ips": ips,
         "domains": domains,
+        "urls": urls,
         "hashes": {
             "md5": md5,
             "sha1": sha1,
@@ -124,6 +129,7 @@ def _aggregate_iocs(events):
     aggregated = {
         "ips": set(),
         "domains": set(),
+        "urls": set(),
         "hashes": {
             "md5": set(),
             "sha1": set(),
@@ -151,6 +157,13 @@ def _aggregate_iocs(events):
                     str(domain).strip()
                 )
 
+        for url in iocs["urls"]:
+
+            if url is not None and str(url).strip():
+                aggregated["urls"].add(
+                    str(url).strip()
+                )
+
         for hash_type in (
             "md5",
             "sha1",
@@ -173,6 +186,9 @@ def _aggregate_iocs(events):
         ),
         "domains": sorted(
             aggregated["domains"]
+        ),
+        "urls": sorted(
+            aggregated["urls"]
         ),
         "hashes": {
             "md5": sorted(
@@ -199,6 +215,7 @@ def _build_ioc_evidence(aggregated_iocs):
 
     ips = aggregated_iocs.get("ips", [])
     domains = aggregated_iocs.get("domains", [])
+    urls = aggregated_iocs.get("urls", [])
     hashes = aggregated_iocs.get("hashes", {})
 
     md5 = hashes.get("md5", [])
@@ -214,16 +231,19 @@ def _build_ioc_evidence(aggregated_iocs):
     return {
         "total_ips": len(ips),
         "total_domains": len(domains),
+        "total_urls": len(urls),
         "total_hashes": total_hashes,
         "has_iocs": bool(
             ips
             or domains
+            or urls
             or md5
             or sha1
             or sha256
         ),
         "ips": ips,
         "domains": domains,
+        "urls": urls,
         "hashes": {
             "md5": md5,
             "sha1": sha1,

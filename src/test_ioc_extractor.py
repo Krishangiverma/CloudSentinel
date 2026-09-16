@@ -2,12 +2,17 @@
 Day 40 tests for the CloudSentinel IOC extractor.
 """
 
+import pytest
+
 from src.threat_intel.ioc_extractor import (
     extract_ipv4,
     extract_domains,
+    extract_urls,
     extract_hashes,
     extract_iocs,
 )
+
+from src.threat_intel.ioc_model import IOC
 
 
 def test_extract_ipv4_addresses():
@@ -152,9 +157,99 @@ def test_empty_event_returns_empty_iocs():
     assert result == {
         "ips": [],
         "domains": [],
+        "urls": [],
         "hashes": {
             "md5": [],
             "sha1": [],
             "sha256": [],
         },
     }
+
+
+# ============================================================
+# DAY 53 — URL IOC TESTS
+# ============================================================
+
+def test_extract_urls():
+    text = (
+        "Suspicious URL "
+        "https://evil.example.com/login "
+        "and http://malware.example.org/payload.exe"
+    )
+
+    assert extract_urls(text) == [
+        "https://evil.example.com/login",
+        "http://malware.example.org/payload.exe",
+    ]
+
+
+def test_extract_urls_removes_trailing_punctuation():
+    text = (
+        "Visit https://evil.example.com/login, "
+        "then http://malware.example.org/payload.exe."
+    )
+
+    assert extract_urls(text) == [
+        "https://evil.example.com/login",
+        "http://malware.example.org/payload.exe",
+    ]
+
+
+def test_extract_iocs_includes_urls():
+    event = {
+        "message": (
+            "Connection to "
+            "https://evil.example.com/login"
+        ),
+        "ip_address": "8.8.8.8",
+    }
+
+    result = extract_iocs(event)
+
+    assert result["ips"] == ["8.8.8.8"]
+    assert result["urls"] == [
+        "https://evil.example.com/login"
+    ]
+
+
+def test_url_paths_are_not_domains():
+    text = (
+        "Standalone example.com "
+        "and URL https://evil.example.com/payload.exe"
+    )
+
+    result = extract_iocs({
+        "message": text,
+        "ip_address": None,
+    })
+
+    assert result["domains"] == [
+        "example.com"
+    ]
+
+    assert result["urls"] == [
+        "https://evil.example.com/payload.exe"
+    ]
+
+
+def test_ioc_model_normalizes_type():
+    ioc = IOC(
+        ioc_type="URL",
+        value="https://evil.example.com/login",
+    )
+
+    assert ioc.ioc_type == "url"
+    assert ioc.value == "https://evil.example.com/login"
+
+    assert ioc.to_dict() == {
+        "ioc_type": "url",
+        "value": "https://evil.example.com/login",
+    }
+
+
+def test_ioc_model_rejects_unsupported_type():
+    with pytest.raises(ValueError):
+        IOC(
+            ioc_type="email",
+            value="attacker@example.com",
+        )

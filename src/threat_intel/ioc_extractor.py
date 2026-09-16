@@ -8,6 +8,7 @@ Supported IOC types:
 
     IPv4
     Domain
+    URL
     MD5
     SHA1
     SHA256
@@ -51,6 +52,12 @@ DOMAIN_PATTERN = re.compile(
 )
 
 
+URL_PATTERN = re.compile(
+    r"\bhttps?://[^\s<>'\"\]\[{}]+",
+    re.IGNORECASE,
+)
+
+
 # ============================================================
 # IP EXTRACTION
 # ============================================================
@@ -88,12 +95,42 @@ def extract_ipv4(text):
 
 
 # ============================================================
+# URL EXTRACTION
+# ============================================================
+
+def extract_urls(text):
+    """
+    Extract unique HTTP/HTTPS URLs from text.
+
+    Returns:
+        List of normalized URL strings.
+    """
+
+    if not text:
+        return []
+
+    urls = []
+
+    for match in URL_PATTERN.findall(str(text)):
+        value = match.rstrip(".,;:!?)]}")
+
+        if value and value not in urls:
+            urls.append(value)
+
+    return urls
+
+
+# ============================================================
 # DOMAIN EXTRACTION
 # ============================================================
 
 def extract_domains(text):
     """
-    Extract domain names from text.
+    Extract standalone domain names from text.
+
+    Domains that are already part of HTTP/HTTPS URLs are
+    excluded so URL paths are not incorrectly identified
+    as domains.
 
     IPv4 addresses are not considered domains.
     """
@@ -101,8 +138,16 @@ def extract_domains(text):
     if not text:
         return []
 
+    value = str(text)
+
+    # Remove complete HTTP/HTTPS URLs before domain matching.
+    value_without_urls = URL_PATTERN.sub(
+        " ",
+        value,
+    )
+
     matches = DOMAIN_PATTERN.findall(
-        str(text)
+        value_without_urls
     )
 
     results = []
@@ -228,6 +273,7 @@ def extract_iocs(event):
         {
             "ips": [],
             "domains": [],
+            "urls": [],
             "hashes": {
                 "md5": [],
                 "sha1": [],
@@ -243,6 +289,7 @@ def extract_iocs(event):
     result = {
         "ips": extract_ipv4(text),
         "domains": extract_domains(text),
+        "urls": extract_urls(text),
         "hashes": extract_hashes(text),
     }
 

@@ -515,6 +515,7 @@ def test_incident_without_iocs_returns_empty_ioc_structure():
     assert incident["iocs"] == {
         "ips": [],
         "domains": [],
+        "urls": [],
         "hashes": {
             "md5": [],
             "sha1": [],

@@ -53,6 +53,7 @@ class SecurityEvent:
         default_factory=lambda: {
             "ips": [],
             "domains": [],
+            "urls": [],
             "hashes": {
                 "md5": [],
                 "sha1": [],
@@ -121,6 +122,7 @@ class SecurityEvent:
             self.iocs = {
                 "ips": [],
                 "domains": [],
+                "urls": [],
                 "hashes": {
                     "md5": [],
                     "sha1": [],

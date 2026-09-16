@@ -20,6 +20,7 @@ DB_PATH = Path(DATABASE_PATH)
 DEFAULT_IOCS = {
     "ips": [],
     "domains": [],
+    "urls": [],
     "hashes": {
         "md5": [],
         "sha1": [],
