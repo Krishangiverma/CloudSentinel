@@ -1,10 +1,12 @@
 """
 CloudSentinel Threat Intelligence Cache.
 
-Provides a small in-memory TTL cache for provider lookups.
+Provides a small thread-safe in-memory TTL cache
+for provider lookups.
 """
 
 import time
+from threading import Lock
 
 
 class ThreatIntelCache:
@@ -12,13 +14,20 @@ class ThreatIntelCache:
     Thread-safe in-memory cache with TTL expiration.
     """
 
-    def __init__(self, ttl_seconds=300, time_function=None):
+    def __init__(
+        self,
+        ttl_seconds=300,
+        time_function=None,
+    ):
         if ttl_seconds < 0:
             raise ValueError(
                 "Cache TTL cannot be negative."
             )
 
-        self.ttl_seconds = float(ttl_seconds)
+        self.ttl_seconds = float(
+            ttl_seconds
+        )
+
         self._time = (
             time_function
             if time_function is not None
@@ -27,7 +36,12 @@ class ThreatIntelCache:
 
         self._entries = {}
 
-    def get(self, key):
+        self._lock = Lock()
+
+    def get(
+        self,
+        key,
+    ):
         """
         Return cached value if present and not expired.
 
@@ -35,38 +49,65 @@ class ThreatIntelCache:
             Cached value or None.
         """
 
-        entry = self._entries.get(key)
+        with self._lock:
 
-        if entry is None:
-            return None
+            entry = self._entries.get(
+                key
+            )
 
-        value, expires_at = entry
+            if entry is None:
+                return None
 
-        if self._time() >= expires_at:
-            self._entries.pop(key, None)
-            return None
+            value, expires_at = entry
 
-        return value
+            if self._time() >= expires_at:
 
-    def set(self, key, value):
-        """Store a value using the configured TTL."""
+                self._entries.pop(
+                    key,
+                    None,
+                )
+
+                return None
+
+            return value
+
+    def set(
+        self,
+        key,
+        value,
+    ):
+        """
+        Store a value using the configured TTL.
+        """
 
         expires_at = (
             self._time()
             + self.ttl_seconds
         )
 
-        self._entries[key] = (
-            value,
-            expires_at,
-        )
+        with self._lock:
+
+            self._entries[key] = (
+                value,
+                expires_at,
+            )
 
     def clear(self):
-        """Remove all cached entries."""
+        """
+        Remove all cached entries.
+        """
 
-        self._entries.clear()
+        with self._lock:
+            self._entries.clear()
 
-    def __len__(self):
-        """Return the number of currently stored entries."""
+    def __len__(
+        self,
+    ):
+        """
+        Return the number of currently stored entries.
+        """
 
-        return len(self._entries)
+        with self._lock:
+            return len(
+                self._entries
+            )

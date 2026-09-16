@@ -9,15 +9,30 @@ No API key is stored in source code.
 
 import json
 import os
-from urllib.error import HTTPError, URLError
+
+from urllib.error import (
+    HTTPError,
+    URLError,
+)
+
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+
+from urllib.request import (
+    Request,
+    urlopen,
+)
 
 from src.threat_intel.ioc_model import IOC
-from src.threat_intel.providers.base import ThreatIntelProvider
+
+from src.threat_intel.providers.base import (
+    RateLimitError,
+    ThreatIntelProvider,
+)
 
 
-class OTXProvider(ThreatIntelProvider):
+class OTXProvider(
+    ThreatIntelProvider
+):
     """
     AlienVault OTX provider adapter.
     """
@@ -36,7 +51,9 @@ class OTXProvider(ThreatIntelProvider):
         self.api_key = (
             api_key
             if api_key is not None
-            else os.getenv("OTX_API_KEY")
+            else os.getenv(
+                "OTX_API_KEY"
+            )
         )
 
         self.base_url = (
@@ -67,7 +84,10 @@ class OTXProvider(ThreatIntelProvider):
     def name(self):
         return "otx"
 
-    def _indicator_path(self, ioc):
+    def _indicator_path(
+        self,
+        ioc,
+    ):
         encoded_value = quote(
             ioc.value,
             safe="",
@@ -102,10 +122,12 @@ class OTXProvider(ThreatIntelProvider):
         )
 
     @staticmethod
-    def _extract_seen_times(pulses):
+    def _extract_seen_times(
+        pulses
+    ):
         """
-        Extract first/last observed timestamps from
-        OTX pulse metadata.
+        Extract first/last observed timestamps
+        from OTX pulse metadata.
 
         Returns:
             tuple(first_seen, last_seen)
@@ -114,6 +136,7 @@ class OTXProvider(ThreatIntelProvider):
         timestamps = []
 
         for pulse in pulses:
+
             if not isinstance(
                 pulse,
                 dict,
@@ -130,12 +153,16 @@ class OTXProvider(ThreatIntelProvider):
 
             if created:
                 timestamps.append(
-                    str(created)
+                    str(
+                        created
+                    )
                 )
 
             if modified:
                 timestamps.append(
-                    str(modified)
+                    str(
+                        modified
+                    )
                 )
 
         if not timestamps:
@@ -146,7 +173,10 @@ class OTXProvider(ThreatIntelProvider):
             max(timestamps),
         )
 
-    def lookup(self, ioc):
+    def lookup(
+        self,
+        ioc,
+    ):
         """
         Query OTX for one IOC.
 
@@ -159,7 +189,10 @@ class OTXProvider(ThreatIntelProvider):
             source
         """
 
-        if not isinstance(ioc, IOC):
+        if not isinstance(
+            ioc,
+            IOC,
+        ):
             raise TypeError(
                 "OTX lookup() requires an IOC instance."
             )
@@ -171,7 +204,9 @@ class OTXProvider(ThreatIntelProvider):
 
         endpoint = (
             self.base_url
-            + self._indicator_path(ioc)
+            + self._indicator_path(
+                ioc
+            )
         )
 
         request = Request(
@@ -185,6 +220,7 @@ class OTXProvider(ThreatIntelProvider):
         )
 
         try:
+
             with self._opener(
                 request,
                 timeout=self.request_timeout,
@@ -193,18 +229,58 @@ class OTXProvider(ThreatIntelProvider):
                 raw_body = response.read()
 
         except HTTPError as exc:
+
+            # ------------------------------------------------
+            # HTTP 429 = provider rate limit
+            # ------------------------------------------------
+
+            if exc.code == 429:
+
+                retry_after = None
+
+                if exc.headers is not None:
+
+                    retry_after = (
+                        exc.headers.get(
+                            "Retry-After"
+                        )
+                    )
+
+                raise RateLimitError(
+                    "OTX rate limit exceeded.",
+                    retry_after=retry_after,
+                ) from exc
+
+            # ------------------------------------------------
+            # Other HTTP errors
+            # ------------------------------------------------
+
             raise RuntimeError(
                 f"OTX HTTP error: {exc.code}"
             ) from exc
 
         except URLError as exc:
+
             raise RuntimeError(
                 f"OTX connection error: {exc.reason}"
             ) from exc
 
+        except TimeoutError as exc:
+
+            raise TimeoutError(
+                "OTX request timed out."
+            ) from exc
+
+        # ----------------------------------------------------
+        # JSON decoding
+        # ----------------------------------------------------
+
         try:
+
             data = json.loads(
-                raw_body.decode("utf-8")
+                raw_body.decode(
+                    "utf-8"
+                )
             )
 
         except (
@@ -215,6 +291,10 @@ class OTXProvider(ThreatIntelProvider):
             raise RuntimeError(
                 "OTX returned invalid JSON."
             ) from exc
+
+        # ----------------------------------------------------
+        # Pulse information
+        # ----------------------------------------------------
 
         pulse_info = data.get(
             "pulse_info"
@@ -232,17 +312,22 @@ class OTXProvider(ThreatIntelProvider):
         pulse_names = []
 
         for pulse in pulses:
+
             if not isinstance(
                 pulse,
                 dict,
             ):
                 continue
 
-            name = pulse.get("name")
+            name = pulse.get(
+                "name"
+            )
 
             if name:
                 pulse_names.append(
-                    str(name)
+                    str(
+                        name
+                    )
                 )
 
         first_seen, last_seen = (
@@ -250,6 +335,10 @@ class OTXProvider(ThreatIntelProvider):
                 pulses
             )
         )
+
+        # ----------------------------------------------------
+        # Normalized result
+        # ----------------------------------------------------
 
         return {
             "status": "success",
