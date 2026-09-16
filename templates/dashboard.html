@@ -1598,292 +1598,431 @@
     }
 
 
-    function renderInvestigation(incident) {
+function renderInvestigation(incident) {
 
-        const body =
-            document.getElementById(
-                "investigation-body"
-            );
+    const body =
+        document.getElementById(
+            "investigation-body"
+        );
 
-        const title =
-            document.getElementById(
-                "investigation-title"
-            );
+    const title =
+        document.getElementById(
+            "investigation-title"
+        );
 
-        const subtitle =
-            document.getElementById(
-                "investigation-subtitle"
-            );
+    const subtitle =
+        document.getElementById(
+            "investigation-subtitle"
+        );
 
-        if (!body) {
-            return;
-        }
+    if (!body) {
+        return;
+    }
 
-        if (title) {
-            title.textContent =
-                `Incident ${incident.incident_id}`;
-        }
+    if (title) {
+        title.textContent =
+            `Incident ${incident.incident_id}`;
+    }
 
-        if (subtitle) {
-            subtitle.textContent =
-                incident.attack_pattern ||
-                "MULTI_EVENT_ACTIVITY";
-        }
+    if (subtitle) {
+        subtitle.textContent =
+            incident.attack_pattern ||
+            "MULTI_EVENT_ACTIVITY";
+    }
 
-        const eventTypes =
-            incident.event_types || {};
+    // =========================================================
+    // EVENT TYPE BREAKDOWN
+    // =========================================================
 
-        const eventTypeHtml =
-            Object.entries(eventTypes)
-                .map(
-                    ([type, count]) => `
-                        <span class="event-type-chip">
-                            ${escapeHtml(type)}
-                            × ${escapeHtml(count)}
-                        </span>
-                    `
-                )
-                .join("");
+    const eventTypes =
+        incident.event_types || {};
 
-        const events =
-            Array.isArray(incident.events)
-                ? incident.events
-                : [];
+    const eventTypeHtml =
+        Object.entries(eventTypes)
+            .map(
+                ([type, count]) => `
+                    <span class="event-type-chip">
+                        ${escapeHtml(type)}
+                        × ${escapeHtml(count)}
+                    </span>
+                `
+            )
+            .join("");
 
-        const timelineHtml =
-            events.length
-                ? events.map(
-                    event => {
+    // =========================================================
+    // INCIDENT EVENTS
+    // =========================================================
 
-                        const severity =
-                            normalizeSeverity(
-                                event.severity
-                            );
+    const events =
+        Array.isArray(incident.events)
+            ? incident.events
+            : [];
 
-                        const risk =
-                            event.risk_score !== null &&
-                            event.risk_score !== undefined
-                                ? event.risk_score
-                                : "—";
+    // =========================================================
+    // ADVANCED INCIDENT DATA
+    // =========================================================
 
-                        return `
-                            <div
-                                class="timeline-event ${severityClass(
-                                    severity
-                                )}"
-                            >
+    const riskLevel =
+        incident.risk_level || "LOW";
 
-                                <div class="timeline-time">
+    const maxRiskScore =
+        incident.max_risk_score ?? 0;
+
+    const totalThreatIntel =
+        incident.total_threat_intel_score ?? 0;
+
+    const maxThreatIntel =
+        incident.max_threat_intel_score ?? 0;
+
+    const criticalEvents =
+        incident.critical_event_count ?? 0;
+
+    const highRiskEvents =
+        incident.high_risk_event_count ?? 0;
+
+    const investigationSummary =
+        incident.investigation_summary ||
+        "No investigation summary available.";
+
+    // =========================================================
+    // ATTACK TIMELINE
+    // =========================================================
+
+    const timelineHtml =
+        events.length
+            ? events.map(
+                event => {
+
+                    const severity =
+                        normalizeSeverity(
+                            event.severity
+                        );
+
+                    const risk =
+                        event.risk_score !== null &&
+                        event.risk_score !== undefined
+                            ? event.risk_score
+                            : "—";
+
+                    const threatIntel =
+                        event.threat_intel_score !== null &&
+                        event.threat_intel_score !== undefined
+                            ? event.threat_intel_score
+                            : 0;
+
+                    return `
+                        <div
+                            class="timeline-event ${severityClass(
+                                severity
+                            )}"
+                        >
+
+                            <div class="timeline-time">
+                                ${escapeHtml(
+                                    formatTimestamp(
+                                        event.timestamp
+                                    )
+                                )}
+                            </div>
+
+                            <div>
+
+                                <div class="timeline-type">
                                     ${escapeHtml(
-                                        formatTimestamp(
-                                            event.timestamp
-                                        )
+                                        event.event_type ||
+                                        "UNKNOWN"
                                     )}
                                 </div>
 
-                                <div>
-
-                                    <div class="timeline-type">
-                                        ${escapeHtml(
-                                            event.event_type ||
-                                            "UNKNOWN"
-                                        )}
-                                    </div>
-
-                                    <div class="timeline-message">
-                                        ${escapeHtml(
-                                            event.message ||
-                                            "No message available"
-                                        )}
-                                    </div>
-
+                                <div class="timeline-message">
+                                    ${escapeHtml(
+                                        event.message ||
+                                        "No message available"
+                                    )}
                                 </div>
 
-                                <div class="timeline-risk">
+                                <div
+                                    class="timeline-message"
+                                    style="margin-top: 4px;"
+                                >
+                                    Threat Intel:
                                     ${escapeHtml(
-                                        severity
+                                        threatIntel
                                     )}
-                                    <br>
-                                    Risk ${escapeHtml(
-                                        risk
-                                    )}/100
                                 </div>
 
                             </div>
-                        `;
-                    }
-                ).join("")
-                : `
-                    <div class="investigation-error">
-                        No correlated events available.
-                    </div>
-                `;
 
-        body.innerHTML = `
+                            <div class="timeline-risk">
 
-            <div class="investigation-summary">
+                                ${escapeHtml(
+                                    severity
+                                )}
 
-                <div class="investigation-card">
+                                <br>
 
-                    <span class="investigation-card-label">
-                        Risk Level
-                    </span>
+                                Risk
+                                ${escapeHtml(
+                                    risk
+                                )}/100
 
-                    <span
-                        class="investigation-card-value investigation-critical"
-                    >
-                        ${escapeHtml(
-                            incident.risk_level
-                        )}
-                    </span>
+                            </div>
 
+                        </div>
+                    `;
+                }
+            ).join("")
+            : `
+                <div class="investigation-error">
+                    No correlated events available.
                 </div>
+            `;
 
+    // =========================================================
+    // RENDER INVESTIGATION
+    // =========================================================
 
-                <div class="investigation-card">
+    body.innerHTML = `
 
-                    <span class="investigation-card-label">
-                        Maximum Risk
-                    </span>
+        <div class="investigation-summary">
 
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            incident.max_risk_score
-                        )} / 100
-                    </span>
+            <div class="investigation-card">
 
-                </div>
+                <span class="investigation-card-label">
+                    Risk Level
+                </span>
 
-
-                <div class="investigation-card">
-
-                    <span class="investigation-card-label">
-                        Source IP
-                    </span>
-
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            incident.ip_address
-                        )}
-                    </span>
-
-                </div>
-
-
-                <div class="investigation-card">
-
-                    <span class="investigation-card-label">
-                        Event Count
-                    </span>
-
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            incident.event_count
-                        )}
-                    </span>
-
-                </div>
-
-
-                <div class="investigation-card">
-
-                    <span class="investigation-card-label">
-                        Status
-                    </span>
-
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            incident.status
-                        )}
-                    </span>
-
-                </div>
-
-
-                <div class="investigation-card">
-
-                    <span class="investigation-card-label">
-                        First Seen
-                    </span>
-
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            formatTimestamp(
-                                incident.first_seen
-                            )
-                        )}
-                    </span>
-
-                </div>
-
-
-                <div class="investigation-card">
-
-                    <span class="investigation-card-label">
-                        Last Seen
-                    </span>
-
-                    <span class="investigation-card-value">
-                        ${escapeHtml(
-                            formatTimestamp(
-                                incident.last_seen
-                            )
-                        )}
-                    </span>
-
-                </div>
-
-            </div>
-
-
-            <div class="investigation-section">
-
-                <h3>
-                    Attack Pattern
-                </h3>
-
-                <div class="pattern-box">
+                <span
+                    class="investigation-card-value investigation-critical"
+                >
                     ${escapeHtml(
-                        incident.attack_pattern ||
-                        "MULTI_EVENT_ACTIVITY"
+                        riskLevel
                     )}
-                </div>
+                </span>
 
             </div>
 
 
-            <div class="investigation-section">
+            <div class="investigation-card">
 
-                <h3>
-                    Event Type Breakdown
-                </h3>
+                <span class="investigation-card-label">
+                    Maximum Risk
+                </span>
 
-                <div class="event-type-list">
-                    ${
-                        eventTypeHtml ||
-                        '<span class="event-type-chip">No event types</span>'
-                    }
-                </div>
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        maxRiskScore
+                    )} / 100
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Source IP
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        incident.ip_address
+                    )}
+                </span>
 
             </div>
 
 
-            <div class="investigation-section">
+            <div class="investigation-card">
 
-                <h3>
-                    Attack Timeline
-                    (${escapeHtml(events.length)} events)
-                </h3>
+                <span class="investigation-card-label">
+                    Event Count
+                </span>
 
-                <div class="timeline">
-                    ${timelineHtml}
-                </div>
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        incident.event_count
+                    )}
+                </span>
 
             </div>
 
-        `;
-    }
 
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Critical Events
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        criticalEvents
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    High-Risk Events
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        highRiskEvents
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Max Threat Intel
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        maxThreatIntel
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Total Threat Intel
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        totalThreatIntel
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Status
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        incident.status
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    First Seen
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        formatTimestamp(
+                            incident.first_seen
+                        )
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="investigation-card">
+
+                <span class="investigation-card-label">
+                    Last Seen
+                </span>
+
+                <span class="investigation-card-value">
+                    ${escapeHtml(
+                        formatTimestamp(
+                            incident.last_seen
+                        )
+                    )}
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="investigation-section">
+
+            <h3>
+                Investigation Summary
+            </h3>
+
+            <div class="pattern-box">
+                ${escapeHtml(
+                    investigationSummary
+                )}
+            </div>
+
+        </div>
+
+
+        <div class="investigation-section">
+
+            <h3>
+                Attack Pattern
+            </h3>
+
+            <div class="pattern-box">
+                ${escapeHtml(
+                    incident.attack_pattern ||
+                    "MULTI_EVENT_ACTIVITY"
+                )}
+            </div>
+
+        </div>
+
+
+        <div class="investigation-section">
+
+            <h3>
+                Event Type Breakdown
+            </h3>
+
+            <div class="event-type-list">
+
+                ${
+                    eventTypeHtml ||
+                    '<span class="event-type-chip">No event types</span>'
+                }
+
+            </div>
+
+        </div>
+
+
+        <div class="investigation-section">
+
+            <h3>
+                Attack Timeline
+                (${escapeHtml(events.length)} events)
+            </h3>
+
+            <div class="timeline">
+                ${timelineHtml}
+            </div>
+
+        </div>
+
+    `;
+}
 
     async function openInvestigation(
         incidentId

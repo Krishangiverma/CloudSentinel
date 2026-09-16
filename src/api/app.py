@@ -1,4 +1,5 @@
 import sys
+import json
 from pathlib import Path
 
 from flask import Flask, jsonify, request, render_template
@@ -10,7 +11,7 @@ from flask import Flask, jsonify, request, render_template
 
 # app.py is inside:
 # CloudSentinel/src/api/app.py
-#
+
 # parents[2] gives:
 # CloudSentinel/
 
@@ -36,7 +37,10 @@ from src.ingestion import ingest_event
 # FLASK APPLICATION
 # ============================================================
 
-app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"))
+app = Flask(
+    __name__,
+    template_folder=str(PROJECT_ROOT / "templates")
+)
 
 # Initialize WebSocket infrastructure
 socketio.init_app(app)
@@ -80,7 +84,8 @@ def home():
             "dashboard": "/dashboard",
             "health": "/api/health",
             "events": "/api/events",
-            "stats": "/api/stats"
+            "stats": "/api/stats",
+            "incidents": "/api/incidents"
         }
     })
 
@@ -133,7 +138,7 @@ def get_events():
                 "severity": event[3],
                 "message": event[4],
                 "source": event[5],
-                "ip_address": event[6],
+                "ip_address": event[6]
             }
 
             # ------------------------------------------------
@@ -145,8 +150,6 @@ def get_events():
             if len(event) > 7 and event[7]:
 
                 try:
-                    import json
-
                     iocs = json.loads(event[7])
 
                 except (
@@ -165,8 +168,6 @@ def get_events():
             if len(event) > 8 and event[8]:
 
                 try:
-                    import json
-
                     threat_intel = json.loads(event[8])
 
                 except (
@@ -185,6 +186,17 @@ def get_events():
                 if len(event) > 9 and event[9] is not None
                 else 0
             )
+
+            try:
+                threat_intel_score = int(
+                    threat_intel_score
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
+                threat_intel_score = 0
 
             # ------------------------------------------------
             # Risk calculation
@@ -251,7 +263,9 @@ def get_stats():
     """
     Return security event statistics including risk analysis.
     """
+
     try:
+
         events = get_all_events()
 
         total_events = len(events)
@@ -263,17 +277,26 @@ def get_stats():
         max_risk_score = 0
 
         for event in events:
+
             severity = event[3]
             event_type = event[2]
 
+            # ------------------------------------------------
             # Count severity
+            # ------------------------------------------------
+
             if severity not in severity_count:
                 severity_count[severity] = 0
+
             severity_count[severity] += 1
 
+            # ------------------------------------------------
             # Count event type
+            # ------------------------------------------------
+
             if event_type not in event_type_count:
                 event_type_count[event_type] = 0
+
             event_type_count[event_type] += 1
 
             # ------------------------------------------------
@@ -286,6 +309,17 @@ def get_stats():
                 else 0
             )
 
+            try:
+                threat_intel_score = int(
+                    threat_intel_score
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
+                threat_intel_score = 0
+
             base_risk = analyze_event_risk({
                 "severity": severity,
                 "event_type": event_type
@@ -293,7 +327,7 @@ def get_stats():
 
             risk_score = min(
                 base_risk["risk_score"]
-                + int(threat_intel_score),
+                + threat_intel_score,
                 100
             )
 
@@ -310,15 +344,23 @@ def get_stats():
                 risk_level = "LOW"
 
             total_risk_score += risk_score
-            max_risk_score = max(max_risk_score, risk_score)
+            max_risk_score = max(
+                max_risk_score,
+                risk_score
+            )
 
             if risk_level not in risk_level_count:
                 risk_level_count[risk_level] = 0
+
             risk_level_count[risk_level] += 1
 
         average_risk_score = (
-            round(total_risk_score / total_events, 2)
-            if total_events > 0 else 0
+            round(
+                total_risk_score / total_events,
+                2
+            )
+            if total_events > 0
+            else 0
         )
 
         return jsonify({
@@ -334,6 +376,7 @@ def get_stats():
         })
 
     except Exception as e:
+
         return jsonify({
             "status": "error",
             "message": "Failed to generate statistics.",
@@ -347,18 +390,41 @@ def get_stats():
 
 @app.route("/api/events", methods=["POST"])
 def create_event():
-    """Create and save a new security event."""
+    """
+    Create and save a new security event.
+    """
+
     try:
-        data = request.get_json(silent=True) or {}
+
+        data = request.get_json(
+            silent=True
+        ) or {}
 
         event = {
             "timestamp": data.get("timestamp"),
-            "event_type": data.get("event_type", "UNKNOWN"),
-            "severity": data.get("severity", "LOW"),
-            "message": data.get("message", "No message available"),
-            "source": data.get("source", "CloudSentinel"),
-            "ip_address": data.get("ip_address", "N/A"),
-            "risk_score": data.get("risk_score")
+            "event_type": data.get(
+                "event_type",
+                "UNKNOWN"
+            ),
+            "severity": data.get(
+                "severity",
+                "LOW"
+            ),
+            "message": data.get(
+                "message",
+                "No message available"
+            ),
+            "source": data.get(
+                "source",
+                "CloudSentinel"
+            ),
+            "ip_address": data.get(
+                "ip_address",
+                "N/A"
+            ),
+            "risk_score": data.get(
+                "risk_score"
+            )
         }
 
         ingest_event(event)
@@ -370,6 +436,7 @@ def create_event():
         }), 201
 
     except Exception as e:
+
         return jsonify({
             "status": "error",
             "message": "Failed to save security event.",
@@ -429,6 +496,11 @@ def api_info():
                 "method": "GET",
                 "path": "/api/incidents",
                 "description": "Get correlated security incidents"
+            },
+            {
+                "method": "GET",
+                "path": "/api/incidents/<incident_id>",
+                "description": "Get individual security incident"
             }
         ]
     })
@@ -442,8 +514,21 @@ def _build_correlated_incidents():
     """
     Build investigation-ready incidents from stored security events.
 
-    The same correlation path is shared by both the collection
-    endpoint and individual incident investigation endpoint.
+    Restores persisted IOC and threat-intelligence data before
+    running risk analysis and incident correlation.
+
+    Database columns:
+
+        0 = id
+        1 = timestamp
+        2 = event_type
+        3 = severity
+        4 = message
+        5 = source
+        6 = ip_address
+        7 = iocs_json
+        8 = threat_intel_json
+        9 = threat_intel_score
     """
 
     events = get_all_events()
@@ -451,6 +536,68 @@ def _build_correlated_incidents():
     analyzed_events = []
 
     for event in events:
+
+        # ----------------------------------------------------
+        # Load persisted IOC data
+        # ----------------------------------------------------
+
+        iocs = {}
+
+        if len(event) > 7 and event[7]:
+
+            try:
+                iocs = json.loads(event[7])
+
+            except (
+                TypeError,
+                ValueError,
+                json.JSONDecodeError
+            ):
+                iocs = {}
+
+        # ----------------------------------------------------
+        # Load persisted threat-intelligence data
+        # ----------------------------------------------------
+
+        threat_intel = {}
+
+        if len(event) > 8 and event[8]:
+
+            try:
+                threat_intel = json.loads(event[8])
+
+            except (
+                TypeError,
+                ValueError,
+                json.JSONDecodeError
+            ):
+                threat_intel = {}
+
+        # ----------------------------------------------------
+        # Load persisted threat-intelligence score
+        # ----------------------------------------------------
+
+        threat_intel_score = (
+            event[9]
+            if len(event) > 9 and event[9] is not None
+            else 0
+        )
+
+        try:
+            threat_intel_score = int(
+                threat_intel_score
+            )
+
+        except (
+            TypeError,
+            ValueError
+        ):
+            threat_intel_score = 0
+
+        # ----------------------------------------------------
+        # Build complete event
+        # ----------------------------------------------------
+
         event_data = {
             "id": event[0],
             "timestamp": event[1],
@@ -458,14 +605,45 @@ def _build_correlated_incidents():
             "severity": event[3],
             "message": event[4],
             "source": event[5],
-            "ip_address": event[6]
+            "ip_address": event[6],
+            "iocs": iocs,
+            "threat_intel": threat_intel,
+            "threat_intel_score": threat_intel_score
         }
 
-        analyzed_events.append(
-            analyze_event_risk(event_data)
+        # ----------------------------------------------------
+        # Analyze event risk
+        # ----------------------------------------------------
+
+        analyzed_event = analyze_event_risk(
+            event_data
         )
 
-    return correlate_events(analyzed_events)
+        # ----------------------------------------------------
+        # Preserve persisted TI information
+        # ----------------------------------------------------
+
+        analyzed_event["iocs"] = iocs
+
+        analyzed_event["threat_intel"] = (
+            threat_intel
+        )
+
+        analyzed_event["threat_intel_score"] = (
+            threat_intel_score
+        )
+
+        analyzed_events.append(
+            analyzed_event
+        )
+
+    # --------------------------------------------------------
+    # Correlate enriched events
+    # --------------------------------------------------------
+
+    return correlate_events(
+        analyzed_events
+    )
 
 
 # ============================================================
@@ -474,9 +652,12 @@ def _build_correlated_incidents():
 
 @app.route("/api/incidents", methods=["GET"])
 def get_incidents():
-    """Return all correlated security incidents."""
+    """
+    Return all correlated security incidents.
+    """
 
     try:
+
         incidents = _build_correlated_incidents()
 
         return jsonify({
@@ -485,6 +666,7 @@ def get_incidents():
         })
 
     except Exception as e:
+
         return jsonify({
             "status": "error",
             "message": "Failed to correlate security incidents.",
@@ -496,7 +678,10 @@ def get_incidents():
 # GET INDIVIDUAL SECURITY INCIDENT
 # ============================================================
 
-@app.route("/api/incidents/<incident_id>", methods=["GET"])
+@app.route(
+    "/api/incidents/<incident_id>",
+    methods=["GET"]
+)
 def get_incident(incident_id):
     """
     Return one complete correlated security incident.
@@ -506,6 +691,7 @@ def get_incident(incident_id):
     """
 
     try:
+
         incidents = _build_correlated_incidents()
 
         normalized_id = str(
@@ -589,7 +775,9 @@ if __name__ == "__main__":
     print("CloudSentinel API")
     print("=" * 60)
 
-    print(f"Project root: {PROJECT_ROOT}")
+    print(
+        f"Project root: {PROJECT_ROOT}"
+    )
 
     print()
     print("Available endpoints:")
@@ -600,6 +788,7 @@ if __name__ == "__main__":
     print("  GET /api/events")
     print("  GET /api/stats")
     print("  GET /api/incidents")
+    print("  GET /api/incidents/<incident_id>")
 
     print()
     print("Starting Flask development server...")
