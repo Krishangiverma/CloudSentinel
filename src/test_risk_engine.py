@@ -120,3 +120,67 @@ def test_invalid_event_input_is_safe():
     assert result["risk_score"] == 20
     assert result["risk_level"] == "LOW"
     assert result["threat_intel_score"] == 0
+
+
+def test_reputation_adjustment_increases_event_risk():
+    result = calculate_risk_score({
+        "severity": "MEDIUM",
+        "event_type": "SUSPICIOUS_LOGIN",
+        "threat_intel": {
+            "total": 1,
+            "items": [{
+                "ioc_type": "ip",
+                "value": "1.2.3.4",
+                "verdict": "unknown",
+                "context": "public",
+                "reputation": 80,
+            }],
+        },
+    })
+
+    assert result["threat_intel_score"] == 25
+    assert result["reputation_adjustment"] == 20
+    assert result["risk_score"] == 80
+    assert result["risk_level"] == "CRITICAL"
+
+
+def test_reputation_adjustment_is_capped():
+    result = calculate_risk_score({
+        "severity": "LOW",
+        "event_type": "SUSPICIOUS_LOGIN",
+        "threat_intel": {
+            "total": 1,
+            "items": [{
+                "ioc_type": "ip",
+                "value": "1.2.3.4",
+                "verdict": "unknown",
+                "context": "public",
+                "reputation": 100,
+            }],
+        },
+    })
+
+    assert result["reputation_adjustment"] == 25
+    assert result["threat_intel_score"] == 30
+    assert result["risk_score"] == 60
+    assert result["risk_level"] == "HIGH"
+
+
+def test_no_reputation_keeps_adjustment_zero():
+    result = calculate_risk_score({
+        "severity": "LOW",
+        "event_type": "SUSPICIOUS_LOGIN",
+        "threat_intel": {
+            "items": [{
+                "ioc_type": "ip",
+                "value": "8.8.8.8",
+                "verdict": "unknown",
+                "context": "public",
+            }],
+        },
+    })
+
+    assert result["reputation_adjustment"] == 0
+    assert result["threat_intel_score"] == 5
+    assert result["risk_score"] == 35
+    assert result["risk_level"] == "MEDIUM"

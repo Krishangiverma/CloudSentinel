@@ -1,12 +1,7 @@
 """
 CloudSentinel Risk Engine.
 
-Calculates a 0-100 risk score for security events.
-
-Risk is based on:
-    - event severity
-    - event type
-    - threat-intelligence context when available
+Calculates a transparent 0-100 risk score for security events.
 """
 
 from src.analyzers.threat_intel_risk import (
@@ -30,40 +25,92 @@ SEVERITY_SCORES = {
 # EVENT TYPE BONUSES
 # ============================================================
 
-EVENT_TYPE_BONUS = {
+EVENT_BONUSES = {
     "BRUTE_FORCE": 10,
     "BRUTE FORCE": 10,
+
     "UNAUTHORIZED_ACCESS": 15,
     "UNAUTHORIZED ACCESS": 15,
+
     "MALWARE": 20,
+
     "INTRUSION": 20,
+
     "PORT_SCAN": 15,
     "PORT SCAN": 15,
+
     "SUSPICIOUS_LOGIN": 10,
     "SUSPICIOUS LOGIN": 10,
 }
 
 
 # ============================================================
-# RISK CALCULATION
+# RISK LEVEL
 # ============================================================
 
-def calculate_risk_score(event):
+def _get_risk_level(
+    risk_score
+):
     """
-    Calculate a risk score from 0 to 100.
-
-    Risk is based on:
-        - event severity
-        - event type
-        - threat intelligence, when available
-
-    Backward compatibility:
-        Events without threat-intelligence data use the
-        original severity + event-type calculation.
+    Convert a numeric risk score into
+    a CloudSentinel risk level.
     """
 
-    if not isinstance(event, dict):
-        event = {}
+    if risk_score >= 80:
+        return "CRITICAL"
+
+    if risk_score >= 60:
+        return "HIGH"
+
+    if risk_score >= 35:
+        return "MEDIUM"
+
+    return "LOW"
+
+
+# ============================================================
+# RISK SCORE
+# ============================================================
+
+def calculate_risk_score(
+    event
+):
+    """
+    Calculate the final 0-100 risk score.
+
+    Formula:
+
+        Base Severity
+        + Event Type Bonus
+        + Threat Intelligence Score
+
+    The final score is capped at 100.
+
+    Reputation adjustment is already incorporated
+    into the threat-intelligence score.
+    """
+
+    # --------------------------------------------------------
+    # Preserve existing safe behavior for invalid input.
+    #
+    # Existing CloudSentinel behavior treats an invalid event
+    # as a default LOW-severity event.
+    # --------------------------------------------------------
+
+    if not isinstance(
+        event,
+        dict,
+    ):
+        return {
+            "risk_score": SEVERITY_SCORES["LOW"],
+            "risk_level": "LOW",
+            "threat_intel_score": 0,
+            "reputation_adjustment": 0,
+        }
+
+    # --------------------------------------------------------
+    # Severity
+    # --------------------------------------------------------
 
     severity = str(
         event.get(
@@ -72,6 +119,15 @@ def calculate_risk_score(event):
         )
     ).upper()
 
+    base_score = SEVERITY_SCORES.get(
+        severity,
+        SEVERITY_SCORES["LOW"],
+    )
+
+    # --------------------------------------------------------
+    # Event type
+    # --------------------------------------------------------
+
     event_type = str(
         event.get(
             "event_type",
@@ -79,48 +135,43 @@ def calculate_risk_score(event):
         )
     ).upper()
 
-    # --------------------------------------------------------
-    # 1. Base severity score
-    # --------------------------------------------------------
-
-    base_score = SEVERITY_SCORES.get(
-        severity,
-        20,
-    )
-
-    # --------------------------------------------------------
-    # 2. Event-type bonus
-    # --------------------------------------------------------
-
-    event_bonus = EVENT_TYPE_BONUS.get(
+    event_bonus = EVENT_BONUSES.get(
         event_type,
         0,
     )
 
     # --------------------------------------------------------
-    # 3. Threat-intelligence contribution
-    #
-    # Only calculate this when threat intelligence is attached.
-    # This preserves the original behavior for older events.
+    # Threat intelligence
     # --------------------------------------------------------
 
     threat_intel_score = 0
+
+    reputation_adjustment = 0
 
     if "threat_intel" in event:
 
         threat_intel = calculate_threat_intel_risk(
             event.get(
-                "threat_intel",
-                {},
+                "threat_intel"
             )
         )
 
-        threat_intel_score = threat_intel[
-            "threat_intel_score"
-        ]
+        threat_intel_score = threat_intel.get(
+            "threat_intel_score",
+            0,
+        )
+
+        # Day 57:
+        # Reputation adjustment is optional because
+        # legacy/empty threat-intel results do not contain
+        # this field.
+        reputation_adjustment = threat_intel.get(
+            "reputation_adjustment",
+            0,
+        )
 
     # --------------------------------------------------------
-    # 4. Final risk score
+    # Final score
     # --------------------------------------------------------
 
     risk_score = min(
@@ -130,26 +181,19 @@ def calculate_risk_score(event):
         100,
     )
 
+    risk_level = _get_risk_level(
+        risk_score
+    )
+
     # --------------------------------------------------------
-    # 5. Risk level
+    # Result
     # --------------------------------------------------------
-
-    if risk_score >= 80:
-        risk_level = "CRITICAL"
-
-    elif risk_score >= 60:
-        risk_level = "HIGH"
-
-    elif risk_score >= 35:
-        risk_level = "MEDIUM"
-
-    else:
-        risk_level = "LOW"
 
     return {
         "risk_score": risk_score,
         "risk_level": risk_level,
         "threat_intel_score": threat_intel_score,
+        "reputation_adjustment": reputation_adjustment,
     }
 
 
@@ -157,27 +201,37 @@ def calculate_risk_score(event):
 # EVENT RISK ANALYSIS
 # ============================================================
 
-def analyze_event_risk(event):
+def analyze_event_risk(
+    event
+):
     """
-    Return the original event enriched with risk information.
+    Analyze an event and return a copy enriched
+    with risk information.
+
+    The original event is not modified.
     """
 
-    result = dict(event)
+    if not isinstance(
+        event,
+        dict,
+    ):
+        return {
+            "risk_score": SEVERITY_SCORES["LOW"],
+            "risk_level": "LOW",
+            "threat_intel_score": 0,
+            "reputation_adjustment": 0,
+        }
+
+    result = dict(
+        event
+    )
 
     risk = calculate_risk_score(
         event
     )
 
-    result["risk_score"] = risk[
-        "risk_score"
-    ]
-
-    result["risk_level"] = risk[
-        "risk_level"
-    ]
-
-    result["threat_intel_score"] = risk[
-        "threat_intel_score"
-    ]
+    result.update(
+        risk
+    )
 
     return result
