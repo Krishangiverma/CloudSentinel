@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>CloudSentinel - IOC Investigation</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b0f14;
+            color: #e6edf3;
+            font-family:
+                Inter,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+        }
+
+        .container {
+            width: min(1500px, 94%);
+            margin: 0 auto;
+            padding: 28px 0 50px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+
+        .title-section h1 {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: -0.5px;
+        }
+
+        .title-section p {
+            margin: 8px 0 0;
+            color: #8b949e;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: #13251b;
+            border: 1px solid #245b38;
+            color: #56d364;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .panel {
+            background: #111820;
+            border: 1px solid #26313d;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel-title {
+            margin: 0 0 16px;
+            font-size: 17px;
+            font-weight: 650;
+        }
+
+        .search-grid {
+            display: grid;
+            grid-template-columns: 180px 1fr auto;
+            gap: 12px;
+        }
+
+        select,
+        input {
+            width: 100%;
+            border: 1px solid #303b48;
+            border-radius: 8px;
+            background: #0d131a;
+            color: #e6edf3;
+            padding: 12px 13px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        select:focus,
+        input:focus {
+            border-color: #58a6ff;
+        }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 20px;
+            background: #238636;
+            color: white;
+            font-size: 14px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.secondary {
+            background: #212b36;
+            border: 1px solid #303b48;
+        }
+
+        .message {
+            display: none;
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .message.error {
+            display: block;
+            background: #2b1618;
+            border: 1px solid #6e3034;
+            color: #ff7b72;
+        }
+
+        .message.info {
+            display: block;
+            background: #111f2e;
+            border: 1px solid #254c70;
+            color: #79c0ff;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(5, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .summary-card {
+            background: #0d131a;
+            border: 1px solid #26313d;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .summary-label {
+            color: #8b949e;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .summary-value {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .catalog {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid #202a35;
+            font-size: 13px;
+        }
+
+        th {
+            color: #8b949e;
+            font-weight: 600;
+        }
+
+        td {
+            color: #d0d7de;
+        }
+
+        .ioc-value {
+            color: #58a6ff;
+            font-family: monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: #172234;
+            color: #79c0ff;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .risk-critical {
+            color: #ff7b72;
+            font-weight: 700;
+        }
+
+        .risk-high {
+            color: #ffa657;
+            font-weight: 700;
+        }
+
+        .risk-medium {
+            color: #d29922;
+            font-weight: 700;
+        }
+
+        .risk-low {
+            color: #56d364;
+            font-weight: 700;
+        }
+
+        .indicator {
+            background: #0d131a;
+            border: 1px solid #26313d;
+            border-radius: 10px;
+            padding: 18px;
+            overflow-x: auto;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.55;
+            color: #c9d1d9;
+        }
+
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .event {
+            background: #0d131a;
+            border: 1px solid #26313d;
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .event-id {
+            color: #79c0ff;
+            font-family: monospace;
+            font-weight: 700;
+        }
+
+        .event-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            color: #8b949e;
+            font-size: 12px;
+        }
+
+        .event-message {
+            color: #c9d1d9;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-top: 10px;
+        }
+
+        .empty {
+            color: #8b949e;
+            padding: 24px 0;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        @media (max-width: 900px) {
+            .search-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+
+            .header {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 550px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- ================================================================
+         HEADER
+         ================================================================ -->
+
+    <header class="header">
+
+        <div class="title-section">
+
+            <h1>IOC Investigation</h1>
+
+            <p>
+                CloudSentinel threat-intelligence investigation and
+                evidence correlation
+            </p>
+
+        </div>
+
+        <div class="top-actions">
+
+            <span class="status-badge">
+                ● READ-ONLY INVESTIGATION
+            </span>
+
+            <button
+                class="secondary"
+                onclick="loadCatalog()"
+            >
+                Refresh
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- ================================================================
+         SEARCH
+         ================================================================ -->
+
+    <section class="panel">
+
+        <h2 class="panel-title">
+            Investigate IOC
+        </h2>
+
+        <div class="search-grid">
+
+            <select id="iocType">
+
+                <option value="ip">
+                    IP Address
+                </option>
+
+                <option value="domain">
+                    Domain
+                </option>
+
+                <option value="url">
+                    URL
+                </option>
+
+                <option value="md5">
+                    MD5
+                </option>
+
+                <option value="sha1">
+                    SHA-1
+                </option>
+
+                <option value="sha256">
+                    SHA-256
+                </option>
+
+            </select>
+
+            <input
+                id="iocValue"
+                type="text"
+                placeholder="Enter IOC value..."
+                autocomplete="off"
+            >
+
+            <button onclick="investigateIOC()">
+                Investigate
+            </button>
+
+        </div>
+
+        <div
+            id="message"
+            class="message"
+        ></div>
+
+    </section>
+
+
+    <!-- ================================================================
+         INVESTIGATION SUMMARY
+         ================================================================ -->
+
+    <section
+        id="investigationPanel"
+        class="panel hidden"
+    >
+
+        <h2 class="panel-title">
+            Investigation Summary
+        </h2>
+
+        <div class="summary-grid">
+
+            <div class="summary-card">
+
+                <div class="summary-label">
+                    IOC
+                </div>
+
+                <div
+                    id="summaryIOC"
+                    class="summary-value"
+                    style="font-size: 14px; word-break: break-all;"
+                >
+                    -
+                </div>
+
+            </div>
+
+            <div class="summary-card">
+
+                <div class="summary-label">
+                    Occurrences
+                </div>
+
+                <div
+                    id="summaryOccurrences"
+                    class="summary-value"
+                >
+                    0
+                </div>
+
+            </div>
+
+            <div class="summary-card">
+
+                <div class="summary-label">
+                    Max Risk
+                </div>
+
+                <div
+                    id="summaryMaxRisk"
+                    class="summary-value"
+                >
+                    0
+                </div>
+
+            </div>
+
+            <div class="summary-card">
+
+                <div class="summary-label">
+                    Total Risk
+                </div>
+
+                <div
+                    id="summaryTotalRisk"
+                    class="summary-value"
+                >
+                    0
+                </div>
+
+            </div>
+
+            <div class="summary-card">
+
+                <div class="summary-label">
+                    Verdict
+                </div>
+
+                <div
+                    id="summaryVerdict"
+                    class="summary-value"
+                    style="font-size: 14px;"
+                >
+                    -
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================================================================
+         NORMALIZED INDICATOR
+         ================================================================ -->
+
+    <section
+        id="indicatorPanel"
+        class="panel hidden"
+    >
+
+        <h2 class="panel-title">
+            Normalized Threat-Intel Object
+        </h2>
+
+        <div class="indicator">
+
+            <pre id="normalizedIndicator">
+-
+            </pre>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================================================================
+         EVIDENCE TIMELINE
+         ================================================================ -->
+
+    <section
+        id="timelinePanel"
+        class="panel hidden"
+    >
+
+        <h2 class="panel-title">
+            Evidence Timeline
+        </h2>
+
+        <div
+            id="timeline"
+            class="timeline"
+        >
+        </div>
+
+    </section>
+
+
+    <!-- ================================================================
+         IOC CATALOG
+         ================================================================ -->
+
+    <section class="panel">
+
+        <h2 class="panel-title">
+            IOC Catalog
+        </h2>
+
+        <div class="catalog">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Type
+                        </th>
+
+                        <th>
+                            IOC
+                        </th>
+
+                        <th>
+                            Occurrences
+                        </th>
+
+                        <th>
+                            Max Risk
+                        </th>
+
+                        <th>
+                            First Seen
+                        </th>
+
+                        <th>
+                            Last Seen
+                        </th>
+
+                        <th>
+                            Action
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="catalogBody">
+
+                    <tr>
+
+                        <td
+                            colspan="7"
+                            class="empty"
+                        >
+                            Loading IOC catalog...
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</div>
+
+
+<script>
+
+    // =====================================================================
+    // Helpers
+    // =====================================================================
+
+    function escapeHTML(value) {
+
+        if (value === null || value === undefined) {
+            return "";
+        }
+
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+
+    function showMessage(message, type = "info") {
+
+        const element =
+            document.getElementById("message");
+
+        element.textContent = message;
+
+        element.className =
+            "message " + type;
+    }
+
+
+    function clearMessage() {
+
+        const element =
+            document.getElementById("message");
+
+        element.textContent = "";
+
+        element.className =
+            "message";
+    }
+
+
+    function riskClass(level) {
+
+        if (!level) {
+            return "";
+        }
+
+        return (
+            "risk-" +
+            String(level).toLowerCase()
+        );
+    }
+
+
+    // =====================================================================
+    // IOC Investigation
+    // =====================================================================
+
+    async function investigateIOC() {
+
+        const type =
+            document.getElementById("iocType").value;
+
+        const value =
+            document.getElementById("iocValue")
+                .value
+                .trim();
+
+        if (!value) {
+
+            showMessage(
+                "Please enter an IOC value.",
+                "error"
+            );
+
+            return;
+        }
+
+        clearMessage();
+
+        try {
+
+            const response =
+                await fetch(
+                    `/api/ioc-investigation?type=${encodeURIComponent(type)}&value=${encodeURIComponent(value)}`
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.message ||
+                    "IOC investigation failed."
+                );
+            }
+
+            renderInvestigation(data);
+
+        } catch (error) {
+
+            console.error(error);
+
+            showMessage(
+                error.message ||
+                "Unable to investigate IOC.",
+                "error"
+            );
+        }
+    }
+
+
+    function renderInvestigation(data) {
+
+        const summary =
+            data.summary || {};
+
+        const query =
+            data.query || {};
+
+        document
+            .getElementById("investigationPanel")
+            .classList.remove("hidden");
+
+        document
+            .getElementById("indicatorPanel")
+            .classList.remove("hidden");
+
+        document
+            .getElementById("timelinePanel")
+            .classList.remove("hidden");
+
+
+        document
+            .getElementById("summaryIOC")
+            .textContent =
+                query.ioc_type
+                ? `${query.ioc_type}: ${query.value}`
+                : query.value || "-";
+
+
+        document
+            .getElementById("summaryOccurrences")
+            .textContent =
+                summary.occurrences ?? 0;
+
+
+        document
+            .getElementById("summaryMaxRisk")
+            .textContent =
+                summary.max_risk_score ?? 0;
+
+
+        document
+            .getElementById("summaryTotalRisk")
+            .textContent =
+                summary.total_risk_score ?? 0;
+
+
+        const verdicts =
+            summary.verdicts || [];
+
+        document
+            .getElementById("summaryVerdict")
+            .textContent =
+                verdicts.length
+                ? verdicts.join(", ")
+                : "No verdict";
+
+
+        // ---------------------------------------------------------------
+        // Normalized indicator
+        // ---------------------------------------------------------------
+
+        const normalized =
+            data.normalized_indicator;
+
+        document
+            .getElementById("normalizedIndicator")
+            .textContent =
+                normalized
+                ? JSON.stringify(
+                    normalized,
+                    null,
+                    2
+                )
+                : "No normalized threat-intelligence object available.";
+
+
+        // ---------------------------------------------------------------
+        // Timeline
+        // ---------------------------------------------------------------
+
+        renderTimeline(
+            data.events || []
+        );
+    }
+
+
+    // =====================================================================
+    // Evidence Timeline
+    // =====================================================================
+
+    function renderTimeline(events) {
+
+        const container =
+            document.getElementById("timeline");
+
+        if (!events.length) {
+
+            container.innerHTML =
+                '<div class="empty">No matching evidence found.</div>';
+
+            return;
+        }
+
+        container.innerHTML =
+            events
+                .map(event => {
+
+                    const level =
+                        event.risk_level || "LOW";
+
+                    return `
+                        <div class="event">
+
+                            <div class="event-header">
+
+                                <div>
+                                    <span class="event-id">
+                                        Event #${escapeHTML(event.id)}
+                                    </span>
+
+                                    <span
+                                        class="${riskClass(level)}"
+                                        style="margin-left: 12px;"
+                                    >
+                                        ${escapeHTML(level)}
+                                    </span>
+                                </div>
+
+                                <div class="event-meta">
+                                    ${escapeHTML(event.timestamp || "")}
+                                </div>
+
+                            </div>
+
+                            <div class="event-meta">
+
+                                <span>
+                                    Type:
+                                    ${escapeHTML(event.event_type || "-")}
+                                </span>
+
+                                <span>
+                                    Severity:
+                                    ${escapeHTML(event.severity || "-")}
+                                </span>
+
+                                <span>
+                                    Risk:
+                                    ${escapeHTML(event.risk_score ?? 0)}
+                                </span>
+
+                                <span>
+                                    TI Score:
+                                    ${escapeHTML(event.threat_intel_score ?? 0)}
+                                </span>
+
+                                <span>
+                                    Source:
+                                    ${escapeHTML(event.source || "-")}
+                                </span>
+
+                            </div>
+
+                            <div class="event-message">
+                                ${escapeHTML(event.message || "No message")}
+                            </div>
+
+                        </div>
+                    `;
+                })
+                .join("");
+    }
+
+
+    // =====================================================================
+    // IOC Catalog
+    // =====================================================================
+
+    async function loadCatalog() {
+
+        const body =
+            document.getElementById("catalogBody");
+
+        body.innerHTML =
+            `
+                <tr>
+                    <td colspan="7" class="empty">
+                        Loading IOC catalog...
+                    </td>
+                </tr>
+            `;
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/ioc-investigation"
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.message ||
+                    "Unable to load IOC catalog."
+                );
+            }
+
+            renderCatalog(
+                data.iocs || []
+            );
+
+        } catch (error) {
+
+            console.error(error);
+
+            body.innerHTML =
+                `
+                    <tr>
+                        <td
+                            colspan="7"
+                            class="empty"
+                        >
+                            Failed to load IOC catalog.
+                        </td>
+                    </tr>
+                `;
+
+            showMessage(
+                error.message ||
+                "Unable to load IOC catalog.",
+                "error"
+            );
+        }
+    }
+
+
+    function renderCatalog(iocs) {
+
+        const body =
+            document.getElementById("catalogBody");
+
+        if (!iocs.length) {
+
+            body.innerHTML =
+                `
+                    <tr>
+                        <td
+                            colspan="7"
+                            class="empty"
+                        >
+                            No IOC data available.
+                        </td>
+                    </tr>
+                `;
+
+            return;
+        }
+
+        body.innerHTML =
+            iocs
+                .map(ioc => {
+
+                    const risk =
+                        ioc.max_risk_score ?? 0;
+
+                    return `
+                        <tr>
+
+                            <td>
+                                <span class="type-badge">
+                                    ${escapeHTML(ioc.ioc_type)}
+                                </span>
+                            </td>
+
+                            <td>
+                                <span class="ioc-value">
+                                    ${escapeHTML(ioc.value)}
+                                </span>
+                            </td>
+
+                            <td>
+                                ${escapeHTML(ioc.occurrences)}
+                            </td>
+
+                            <td>
+                                <span class="${riskClass(
+                                    getRiskLevel(risk)
+                                )}">
+                                    ${escapeHTML(risk)}
+                                </span>
+                            </td>
+
+                            <td>
+                                ${escapeHTML(ioc.first_seen || "-")}
+                            </td>
+
+                            <td>
+                                ${escapeHTML(ioc.last_seen || "-")}
+                            </td>
+
+                            <td>
+
+                                <button
+                                    onclick="investigateFromCatalog(
+                                        '${escapeJS(ioc.ioc_type)}',
+                                        '${escapeJS(ioc.value)}'
+                                    )"
+                                >
+                                    Investigate
+                                </button>
+
+                            </td>
+
+                        </tr>
+                    `;
+                })
+                .join("");
+    }
+
+
+    function escapeJS(value) {
+
+        return String(value)
+            .replace(/\\/g, "\\\\")
+            .replace(/'/g, "\\'");
+    }
+
+
+    function getRiskLevel(score) {
+
+        const numeric =
+            Number(score) || 0;
+
+        if (numeric >= 80) {
+            return "CRITICAL";
+        }
+
+        if (numeric >= 60) {
+            return "HIGH";
+        }
+
+        if (numeric >= 35) {
+            return "MEDIUM";
+        }
+
+        return "LOW";
+    }
+
+
+    function investigateFromCatalog(
+        type,
+        value
+    ) {
+
+        document
+            .getElementById("iocType")
+            .value = type;
+
+        document
+            .getElementById("iocValue")
+            .value = value;
+
+        investigateIOC();
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    }
+
+
+    // =====================================================================
+    // Enter key support
+    // =====================================================================
+
+    document
+        .getElementById("iocValue")
+        .addEventListener(
+            "keydown",
+            function(event) {
+
+                if (event.key === "Enter") {
+                    investigateIOC();
+                }
+
+            }
+        );
+
+
+    // =====================================================================
+    // Initial page load
+    // =====================================================================
+
+    loadCatalog();
+
+</script>
+
+</body>
+</html>

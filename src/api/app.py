@@ -49,6 +49,7 @@ from src.hunting.hunt_engine import (
     HuntQuery,
 )
 from src.hunting.hunt_storage import HuntStorage
+from src.api.ioc_investigation import ioc_investigation_bp
 
 
 # ============================================================
@@ -62,6 +63,11 @@ app = Flask(
 
 # Initialize WebSocket infrastructure
 socketio.init_app(app)
+
+# Day 60 IOC Investigation API
+app.register_blueprint(
+    ioc_investigation_bp
+)
 
 
 # ============================================================
