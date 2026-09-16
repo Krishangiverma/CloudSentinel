@@ -15,6 +15,7 @@ def make_event(
     event_type,
     risk_score,
     ip_address="192.168.1.50",
+    user=None,
 ):
     return {
         "id": event_id,
@@ -24,6 +25,7 @@ def make_event(
         "message": f"Test event {event_id}",
         "source": "test",
         "ip_address": ip_address,
+        "user": user,
         "risk_score": risk_score,
     }
 
@@ -522,3 +524,252 @@ def test_incident_without_iocs_returns_empty_ioc_structure():
             "sha256": [],
         },
     }
+
+
+# ============================================================
+# DAY 61 — TEMPORAL + IDENTITY CORRELATION
+# ============================================================
+
+def test_same_ip_events_outside_time_window_split_incidents():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.10",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "SUSPICIOUS_LOGIN",
+            55,
+            "10.0.0.10",
+        ),
+        make_event(
+            4,
+            "2026-09-14T10:20:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+        ),
+        make_event(
+            5,
+            "2026-09-14T10:21:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+        ),
+        make_event(
+            6,
+            "2026-09-14T10:22:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+        ),
+    ]
+
+    incidents = correlate_events(
+        events,
+        time_window_seconds=300,
+    )
+
+    assert len(incidents) == 2
+    assert incidents[0]["event_count"] == 3
+    assert incidents[1]["event_count"] == 3
+    assert [
+        event["id"] for event in incidents[0]["events"]
+    ] == [1, 2, 3]
+    assert [
+        event["id"] for event in incidents[1]["events"]
+    ] == [4, 5, 6]
+
+
+def test_same_user_across_different_ips_correlates():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+            user="alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            55,
+            "10.0.0.20",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.30",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert len(incidents) == 1
+
+    incident = incidents[0]
+
+    assert incident["ip_address"] == "MULTIPLE"
+    assert incident["source_ips"] == [
+        "10.0.0.10",
+        "10.0.0.20",
+        "10.0.0.30",
+    ]
+    assert incident["users"] == ["alice"]
+    assert incident["event_count"] == 3
+
+
+def test_different_user_and_ip_do_not_correlate():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+            user="alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.20",
+            user="bob",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.30",
+            user="charlie",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert incidents == []
+
+
+def test_day61_correlation_metadata_contains_relationships():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+            user="alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            55,
+            "10.0.0.10",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.20",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert len(incidents) == 1
+
+    correlation = incidents[0]["correlation"]
+
+    assert correlation["method"] == (
+        "TEMPORAL_IDENTITY_EVENT_CORRELATION"
+    )
+    assert correlation["time_window_seconds"] == 300
+    assert correlation["source_ips"] == [
+        "10.0.0.10",
+        "10.0.0.20",
+    ]
+    assert correlation["users"] == ["alice"]
+
+    relationships = correlation["relationships"]
+
+    assert relationships
+    assert any(
+        "SAME_SOURCE_IP" in relationship["reasons"]
+        for relationship in relationships
+    )
+    assert any(
+        "SAME_USER" in relationship["reasons"]
+        for relationship in relationships
+    )
+    assert all(
+        "WITHIN_TIME_WINDOW" in relationship["reasons"]
+        for relationship in relationships
+    )
+
+
+def test_day61_invalid_time_window_is_rejected():
+    try:
+        correlate_events(
+            [],
+            time_window_seconds=-1,
+        )
+        assert False, "Expected ValueError"
+    except ValueError as error:
+        assert "cannot be negative" in str(error)
+
+
+def test_day61_user_matching_is_case_insensitive():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.10",
+            user="Alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.20",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "FAILED_LOGIN",
+            40,
+            "10.0.0.30",
+            user="ALICE",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert len(incidents) == 1
+    assert incidents[0]["users"] == ["alice"]
