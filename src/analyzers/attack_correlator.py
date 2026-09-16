@@ -282,6 +282,269 @@ def _detect_attack_pattern(events):
 
 
 # ============================================================
+# INCIDENT STATUS TRANSITIONS
+# ============================================================
+
+def transition_incident_status(
+    current_status,
+    new_status,
+):
+    """
+    Validate and apply a CloudSentinel incident status transition.
+
+    Supported lifecycle:
+
+        OPEN -> INVESTIGATING
+        OPEN -> RESOLVED
+        INVESTIGATING -> RESOLVED
+
+    RESOLVED is terminal.
+    """
+
+    current = str(
+        current_status or ""
+    ).strip().upper()
+
+    target = str(
+        new_status or ""
+    ).strip().upper()
+
+    valid_statuses = {
+        "OPEN",
+        "INVESTIGATING",
+        "RESOLVED",
+    }
+
+    if current not in valid_statuses:
+        raise ValueError(
+            f"Invalid current incident status: {current}"
+        )
+
+    if target not in valid_statuses:
+        raise ValueError(
+            f"Invalid target incident status: {target}"
+        )
+
+    allowed_transitions = {
+        "OPEN": {
+            "OPEN",
+            "INVESTIGATING",
+            "RESOLVED",
+        },
+        "INVESTIGATING": {
+            "INVESTIGATING",
+            "RESOLVED",
+        },
+        "RESOLVED": {
+            "RESOLVED",
+        },
+    }
+
+    if target not in allowed_transitions[current]:
+        raise ValueError(
+            f"Invalid incident status transition: "
+            f"{current} -> {target}"
+        )
+
+    return target
+
+
+
+# ============================================================
+# RESPONSE PRIORITY
+# ============================================================
+
+def _build_response_priority(risk_level):
+    """
+    Convert incident risk level into a deterministic
+    SOC response priority.
+    """
+
+    normalized_risk = str(
+        risk_level or "LOW"
+    ).upper()
+
+    if normalized_risk == "CRITICAL":
+        return "IMMEDIATE"
+
+    if normalized_risk == "HIGH":
+        return "HIGH"
+
+    return "STANDARD"
+
+
+
+# ============================================================
+# RESPONSE RECOMMENDATIONS
+# ============================================================
+
+def _build_response_recommendations(
+    attack_pattern,
+    risk_level,
+    max_risk_score,
+    aggregated_iocs,
+    critical_event_count,
+    high_risk_event_count,
+    max_threat_intel_score,
+):
+    """
+    Build deterministic SOC response recommendations.
+
+    Recommendations are rule-based and derived only from the
+    incident context already calculated by the correlation engine.
+    """
+
+    recommendations = []
+
+    normalized_pattern = str(
+        attack_pattern or ""
+    ).upper()
+
+    normalized_risk = str(
+        risk_level or "LOW"
+    ).upper()
+
+    # --------------------------------------------------------
+    # High-risk incident handling
+    # --------------------------------------------------------
+
+    if normalized_risk in ("CRITICAL", "HIGH"):
+
+        recommendations.append(
+            "Review and contain the affected source IP before "
+            "further investigation."
+        )
+
+    # --------------------------------------------------------
+    # Brute-force activity
+    # --------------------------------------------------------
+
+    if normalized_pattern == "BRUTE_FORCE_ACTIVITY":
+
+        recommendations.append(
+            "Review authentication logs for the source IP and "
+            "consider blocking or rate-limiting repeated login attempts."
+        )
+
+    # --------------------------------------------------------
+    # Malware activity
+    # --------------------------------------------------------
+
+    if normalized_pattern == "MALWARE_ACTIVITY":
+
+        recommendations.append(
+            "Isolate affected systems and investigate the malware "
+            "execution chain and persistence mechanisms."
+        )
+
+    # --------------------------------------------------------
+    # Reconnaissance
+    # --------------------------------------------------------
+
+    if normalized_pattern == "RECONNAISSANCE_ACTIVITY":
+
+        recommendations.append(
+            "Review targeted services and network connections to "
+            "identify the scope of reconnaissance activity."
+        )
+
+    # --------------------------------------------------------
+    # Unauthorized access / intrusion
+    # --------------------------------------------------------
+
+    if normalized_pattern == "INTRUSION_ACTIVITY":
+
+        recommendations.append(
+            "Investigate the compromised access path and review "
+            "privilege escalation or lateral movement activity."
+        )
+
+    # --------------------------------------------------------
+    # Suspicious login
+    # --------------------------------------------------------
+
+    if normalized_pattern == "SUSPICIOUS_LOGIN_ACTIVITY":
+
+        recommendations.append(
+            "Validate the login source, account activity, and "
+            "authentication history for unauthorized access."
+        )
+
+    # --------------------------------------------------------
+    # IOC investigation
+    # --------------------------------------------------------
+
+    ioc_data = aggregated_iocs or {}
+
+    ips = ioc_data.get("ips", [])
+    domains = ioc_data.get("domains", [])
+    hashes = ioc_data.get("hashes", {})
+
+    has_hashes = any(
+        hashes.get(hash_type, [])
+        for hash_type in (
+            "md5",
+            "sha1",
+            "sha256",
+        )
+    )
+
+    if ips or domains or has_hashes:
+
+        recommendations.append(
+            "Investigate the correlated IOCs across endpoint, "
+            "network, and security telemetry."
+        )
+
+    # --------------------------------------------------------
+    # Threat intelligence
+    # --------------------------------------------------------
+
+    if max_threat_intel_score > 0:
+
+        recommendations.append(
+            "Validate threat-intelligence matches and prioritize "
+            "confirmed indicators for containment and investigation."
+        )
+
+    # --------------------------------------------------------
+    # Critical event evidence
+    # --------------------------------------------------------
+
+    if critical_event_count > 0:
+
+        recommendations.append(
+            "Preserve relevant logs and evidence from critical events "
+            "before remediation."
+        )
+
+    # --------------------------------------------------------
+    # High-risk evidence
+    # --------------------------------------------------------
+
+    elif high_risk_event_count > 0:
+
+        recommendations.append(
+            "Review high-risk event details and retain supporting "
+            "security telemetry for investigation."
+        )
+
+    # --------------------------------------------------------
+    # Risk fallback
+    # --------------------------------------------------------
+
+    if not recommendations:
+
+        recommendations.append(
+            "Continue monitoring the correlated activity and review "
+            "supporting security events for additional indicators."
+        )
+
+    return recommendations
+
+
+
+# ============================================================
 # INCIDENT SUMMARY
 # ============================================================
 
@@ -349,6 +612,8 @@ def _build_investigation_evidence(
     high_risk_event_count,
     aggregated_iocs,
     investigation_summary,
+    response_priority,
+    response_recommendations,
 ):
     """
     Build a structured SOC investigation evidence package.
@@ -437,6 +702,12 @@ def _build_investigation_evidence(
         "timeline": timeline,
 
         "investigation_summary": investigation_summary,
+
+        "response_priority": response_priority,
+
+        "response_recommendations": (
+            response_recommendations
+        ),
     }
 
 
@@ -546,6 +817,24 @@ def _build_incident(incident_id, ip_address, events):
     )
 
     # --------------------------------------------------------
+    # Response recommendations
+    # --------------------------------------------------------
+
+    response_priority = _build_response_priority(
+        risk_level
+    )
+
+    response_recommendations = _build_response_recommendations(
+        attack_pattern=attack_pattern,
+        risk_level=risk_level,
+        max_risk_score=max_risk,
+        aggregated_iocs=aggregated_iocs,
+        critical_event_count=critical_event_count,
+        high_risk_event_count=high_risk_event_count,
+        max_threat_intel_score=max_threat_intel_score,
+    )
+
+    # --------------------------------------------------------
     # Investigation summary
     # --------------------------------------------------------
 
@@ -591,6 +880,8 @@ def _build_incident(incident_id, ip_address, events):
         high_risk_event_count=high_risk_event_count,
         aggregated_iocs=aggregated_iocs,
         investigation_summary=investigation_summary,
+        response_priority=response_priority,
+        response_recommendations=response_recommendations,
     )
 
     # --------------------------------------------------------
@@ -606,6 +897,13 @@ def _build_incident(incident_id, ip_address, events):
         "event_types": event_types,
 
         "attack_pattern": attack_pattern,
+
+        # SOC response guidance
+        "response_priority": response_priority,
+
+        "response_recommendations": (
+            response_recommendations
+        ),
 
         "first_seen": first_seen,
 

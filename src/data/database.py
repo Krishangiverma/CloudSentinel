@@ -174,6 +174,20 @@ def initialize_database():
     _migrate_security_events_table(cursor)
 
     # --------------------------------------------------------
+    # Incident Status Table
+    # --------------------------------------------------------
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_status (
+            incident_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'OPEN',
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    # --------------------------------------------------------
     # Security Alerts Table
     # --------------------------------------------------------
 
@@ -544,3 +558,104 @@ def get_all_alerts():
     connection.close()
 
     return alerts
+
+
+# ============================================================
+# Incident Status Persistence
+# ============================================================
+
+def get_incident_status(incident_id):
+    """
+    Retrieve the persisted status for an incident.
+
+    Unknown incidents default to OPEN.
+    """
+
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
+
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+
+    normalized_id = str(
+        incident_id
+    ).strip().upper()
+
+    cursor.execute(
+        """
+        SELECT status
+        FROM incident_status
+        WHERE incident_id = ?
+        """,
+        (normalized_id,),
+    )
+
+    row = cursor.fetchone()
+
+    connection.close()
+
+    if row is None:
+        return "OPEN"
+
+    return str(
+        row[0]
+    ).strip().upper()
+
+
+def set_incident_status(
+    incident_id,
+    status,
+):
+    """
+    Persist an incident status.
+
+    The caller is responsible for validating lifecycle
+    transitions before calling this function.
+    """
+
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
+
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+
+    normalized_id = str(
+        incident_id
+    ).strip().upper()
+
+    normalized_status = str(
+        status
+    ).strip().upper()
+
+    updated_at = datetime.now().isoformat()
+
+    cursor.execute(
+        """
+        INSERT INTO incident_status (
+            incident_id,
+            status,
+            updated_at
+        )
+        VALUES (?, ?, ?)
+        ON CONFLICT(incident_id)
+        DO UPDATE SET
+            status = excluded.status,
+            updated_at = excluded.updated_at
+        """,
+        (
+            normalized_id,
+            normalized_status,
+            updated_at,
+        ),
+    )
+
+    connection.commit()
+    connection.close()

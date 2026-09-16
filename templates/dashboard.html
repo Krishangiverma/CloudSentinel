@@ -2119,6 +2119,55 @@ function renderInvestigation(incident) {
     }
 
 
+    async function updateIncidentStatus(
+        incidentId,
+        newStatus
+    ) {
+
+        try {
+
+            const response = await fetch(
+                `/api/incidents/${encodeURIComponent(incidentId)}/status`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        status: newStatus
+                    })
+                }
+            );
+
+            const payload =
+                await response.json();
+
+            if (!response.ok) {
+
+                throw new Error(
+                    payload.message ||
+                    "Failed to update incident status."
+                );
+
+            }
+
+            return payload.incident;
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "Incident status update failed:",
+                error
+            );
+
+            throw error;
+
+        }
+    }
+
+
     function initializeInvestigationControls() {
 
         const incidentsTable =
@@ -2140,25 +2189,81 @@ function renderInvestigation(incident) {
 
             incidentsTable.addEventListener(
                 "click",
-                event => {
+                async event => {
 
-                    const button =
+                    const investigateButton =
                         event.target.closest(
                             ".investigate-button"
                         );
 
-                    if (!button) {
+                    if (investigateButton) {
+
+                        const incidentId =
+                            investigateButton.dataset.incidentId;
+
+                        if (incidentId) {
+
+                            openInvestigation(
+                                incidentId
+                            );
+
+                        }
+
                         return;
                     }
 
-                    const incidentId =
-                        button.dataset.incidentId;
 
-                    if (incidentId) {
-
-                        openInvestigation(
-                            incidentId
+                    const statusButton =
+                        event.target.closest(
+                            ".incident-status-action"
                         );
+
+                    if (!statusButton) {
+                        return;
+                    }
+
+
+                    const incidentId =
+                        statusButton.dataset.incidentId;
+
+                    const newStatus =
+                        statusButton.dataset.status;
+
+
+                    if (
+                        !incidentId ||
+                        !newStatus
+                    ) {
+                        return;
+                    }
+
+
+                    statusButton.disabled = true;
+
+
+                    try {
+
+                        await updateIncidentStatus(
+                            incidentId,
+                            newStatus
+                        );
+
+                        await loadEvents();
+
+                    }
+
+                    catch (error) {
+
+                        alert(
+                            error.message ||
+                            "Failed to update incident status."
+                        );
+
+                    }
+
+                    finally {
+
+                        statusButton.disabled = false;
 
                     }
 
@@ -2708,6 +2813,42 @@ function renderInvestigation(incident) {
                                     ${escapeHtml(
                                         incident.status
                                     )}
+                                </td>
+
+                                <td>
+                                    ${
+                                        incident.status === "OPEN"
+                                            ? `
+                                                <button
+                                                    type="button"
+                                                    class="incident-status-action"
+                                                    data-incident-id="${escapeHtml(
+                                                        incident.incident_id
+                                                    )}"
+                                                    data-status="INVESTIGATING"
+                                                >
+                                                    START INVESTIGATION
+                                                </button>
+                                            `
+                                            : incident.status === "INVESTIGATING"
+                                                ? `
+                                                    <button
+                                                        type="button"
+                                                        class="incident-status-action"
+                                                        data-incident-id="${escapeHtml(
+                                                            incident.incident_id
+                                                        )}"
+                                                        data-status="RESOLVED"
+                                                    >
+                                                        RESOLVE INCIDENT
+                                                    </button>
+                                                `
+                                                : `
+                                                    <span class="incident-resolved">
+                                                        RESOLVED
+                                                    </span>
+                                                `
+                                    }
                                 </td>
 
                                 <td>

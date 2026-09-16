@@ -26,9 +26,17 @@ if str(PROJECT_ROOT) not in sys.path:
 # DATABASE IMPORTS
 # ============================================================
 
-from src.data.database import get_all_events, save_event
+from src.data.database import (
+    get_all_events,
+    get_incident_status,
+    save_event,
+    set_incident_status,
+)
 from src.analyzers.risk_engine import analyze_event_risk
-from src.analyzers.attack_correlator import correlate_events
+from src.analyzers.attack_correlator import (
+    correlate_events,
+    transition_incident_status,
+)
 from src.api.websocket import socketio
 from src.ingestion import ingest_event
 
@@ -641,9 +649,43 @@ def _build_correlated_incidents():
     # Correlate enriched events
     # --------------------------------------------------------
 
-    return correlate_events(
+    incidents = correlate_events(
         analyzed_events
     )
+
+    # --------------------------------------------------------
+    # Restore persisted incident lifecycle status
+    # --------------------------------------------------------
+
+    for incident in incidents:
+
+        incident_id = incident.get(
+            "incident_id"
+        )
+
+        if not incident_id:
+            continue
+
+        persisted_status = get_incident_status(
+            incident_id
+        )
+
+        incident["status"] = persisted_status
+
+        evidence = incident.get(
+            "evidence"
+        )
+
+        if isinstance(evidence, dict):
+
+            metadata = evidence.get(
+                "metadata"
+            )
+
+            if isinstance(metadata, dict):
+                metadata["status"] = persisted_status
+
+    return incidents
 
 
 # ============================================================
@@ -671,6 +713,137 @@ def get_incidents():
             "status": "error",
             "message": "Failed to correlate security incidents.",
             "error": str(e)
+        }), 500
+
+
+# ============================================================
+# UPDATE SECURITY INCIDENT STATUS
+# ============================================================
+
+@app.route(
+    "/api/incidents/<incident_id>/status",
+    methods=["PATCH"]
+)
+def update_incident_status(incident_id):
+    """
+    Update the lifecycle status of a security incident.
+
+    Supported lifecycle:
+
+        OPEN
+            |
+            v
+        INVESTIGATING
+            |
+            v
+        RESOLVED
+
+    RESOLVED is terminal.
+    """
+
+    try:
+
+        incidents = _build_correlated_incidents()
+
+        normalized_id = str(
+            incident_id
+        ).strip().upper()
+
+        target_incident = None
+
+        for incident in incidents:
+
+            if incident.get(
+                "incident_id",
+                ""
+            ).upper() == normalized_id:
+
+                target_incident = incident
+                break
+
+        if target_incident is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Security incident not found.",
+                "incident_id": incident_id
+            }), 404
+
+        payload = request.get_json(
+            silent=True
+        )
+
+        if not isinstance(payload, dict):
+
+            return jsonify({
+                "status": "error",
+                "message": "Request body must be a JSON object."
+            }), 400
+
+        requested_status = payload.get(
+            "status"
+        )
+
+        if requested_status is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Incident status is required."
+            }), 400
+
+        current_status = get_incident_status(
+            normalized_id
+        )
+
+        try:
+
+            new_status = transition_incident_status(
+                current_status,
+                requested_status
+            )
+
+        except ValueError as error:
+
+            return jsonify({
+                "status": "error",
+                "message": str(error),
+                "incident_id": normalized_id,
+                "current_status": current_status,
+                "requested_status": requested_status
+            }), 400
+
+        set_incident_status(
+            normalized_id,
+            new_status
+        )
+
+        target_incident["status"] = new_status
+
+        evidence = target_incident.get(
+            "evidence"
+        )
+
+        if isinstance(evidence, dict):
+
+            metadata = evidence.get(
+                "metadata"
+            )
+
+            if isinstance(metadata, dict):
+                metadata["status"] = new_status
+
+        return jsonify({
+            "status": "success",
+            "message": "Incident status updated.",
+            "incident": target_incident
+        })
+
+    except Exception as error:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to update security incident status.",
+            "error": str(error)
         }), 500
 
 
