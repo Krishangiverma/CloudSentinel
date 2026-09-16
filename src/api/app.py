@@ -39,6 +39,11 @@ from src.analyzers.attack_correlator import (
 )
 from src.api.websocket import socketio
 from src.ingestion import ingest_event
+from src.rules.rule_loader import load_rules_from_yaml
+from src.mitre.registry import (
+    build_detection_mitre_mappings,
+    find_detection_mitre_mapping,
+)
 
 
 # ============================================================
@@ -517,6 +522,112 @@ def api_info():
 # ============================================================
 # GET CORRELATED SECURITY INCIDENTS
 # ============================================================
+
+# ============================================================
+# MITRE ATT&CK DETECTION MAPPINGS
+# ============================================================
+
+MITRE_RULE_FILE = (
+    PROJECT_ROOT
+    / "config"
+    / "rules"
+    / "detection_rules.yaml"
+)
+
+
+def _load_mitre_detection_rules():
+    """
+    Load the current CloudSentinel detection rules
+    used for MITRE ATT&CK mapping.
+    """
+
+    return load_rules_from_yaml(
+        str(MITRE_RULE_FILE)
+    )
+
+
+@app.route(
+    "/api/mitre/mappings",
+    methods=["GET"]
+)
+def get_mitre_mappings():
+    """
+    Return MITRE ATT&CK mappings for all
+    configured CloudSentinel detection rules.
+    """
+
+    try:
+
+        rules = _load_mitre_detection_rules()
+
+        mappings = build_detection_mitre_mappings(
+            rules
+        )
+
+        return jsonify({
+            "status": "ok",
+            "count": len(mappings),
+            "mappings": mappings,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": (
+                "Failed to retrieve MITRE "
+                "detection mappings."
+            ),
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/mitre/mappings/<rule_id>",
+    methods=["GET"]
+)
+def get_mitre_mapping(rule_id):
+    """
+    Return the MITRE ATT&CK mapping for
+    one detection rule.
+    """
+
+    try:
+
+        rules = _load_mitre_detection_rules()
+
+        mapping = find_detection_mitre_mapping(
+            rules,
+            rule_id,
+        )
+
+        if mapping is None:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    f"Detection rule '{rule_id}' "
+                    "was not found."
+                ),
+            }), 404
+
+        return jsonify({
+            "status": "ok",
+            "mapping": mapping,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": (
+                "Failed to retrieve MITRE "
+                "detection mapping."
+            ),
+            "error": str(e),
+        }), 500
+
+
 
 def _build_correlated_incidents():
     """

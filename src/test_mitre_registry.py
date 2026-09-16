@@ -1,0 +1,133 @@
+"""
+Day 47 tests for detection-to-MITRE mapping.
+"""
+
+from src.mitre.registry import (
+    build_detection_mitre_mappings,
+    find_detection_mitre_mapping,
+    map_detection_to_mitre,
+)
+from src.rules.rule_loader import (
+    load_rules_from_yaml,
+)
+
+
+RULE_FILE = (
+    "config/rules/detection_rules.yaml"
+)
+
+
+def _load_rules():
+    return load_rules_from_yaml(
+        RULE_FILE
+    )
+
+
+# ============================================================
+# SINGLE DETECTION
+# ============================================================
+
+def test_detection_maps_to_mitre():
+
+    rules = _load_rules()
+
+    rule = next(
+        rule
+        for rule in rules
+        if rule.name == "brute_force"
+    )
+
+    mapping = map_detection_to_mitre(
+        rule
+    )
+
+    assert mapping.technique_id == "T1110"
+    assert mapping.technique == "Brute Force"
+    assert mapping.tactic == "Credential Access"
+    assert mapping.subtechnique_id is None
+    assert mapping.confidence == 0.80
+
+
+# ============================================================
+# SUB-TECHNIQUE
+# ============================================================
+
+def test_sudo_detection_maps_to_subtechnique():
+
+    rules = _load_rules()
+
+    rule = next(
+        rule
+        for rule in rules
+        if rule.name == "sudo_activity"
+    )
+
+    mapping = map_detection_to_mitre(
+        rule
+    )
+
+    assert mapping.technique_id == "T1548"
+    assert mapping.subtechnique_id == "T1548.003"
+    assert mapping.subtechnique == (
+        "Sudo and Sudo Caching"
+    )
+
+
+# ============================================================
+# ALL DETECTIONS
+# ============================================================
+
+def test_all_existing_detections_are_mapped():
+
+    rules = _load_rules()
+
+    mappings = build_detection_mitre_mappings(
+        rules
+    )
+
+    assert len(mappings) == 8
+
+    for item in mappings:
+
+        assert item["rule_id"]
+        assert item["rule_name"]
+        assert item["mapping"]["tactic"]
+        assert item["mapping"]["technique_id"]
+        assert item["mapping"]["technique"]
+        assert item["mapping"]["evidence"]
+        assert 0.0 <= (
+            item["mapping"]["confidence"]
+        ) <= 1.0
+
+
+# ============================================================
+# LOOKUP
+# ============================================================
+
+def test_detection_mapping_lookup():
+
+    rules = _load_rules()
+
+    result = find_detection_mitre_mapping(
+        rules,
+        "PRIV-001",
+    )
+
+    assert result is not None
+    assert result["rule_name"] == "sudo_activity"
+    assert (
+        result["mapping"]["subtechnique_id"]
+        == "T1548.003"
+    )
+
+
+def test_unknown_detection_returns_none():
+
+    rules = _load_rules()
+
+    result = find_detection_mitre_mapping(
+        rules,
+        "DOES-NOT-EXIST",
+    )
+
+    assert result is None
