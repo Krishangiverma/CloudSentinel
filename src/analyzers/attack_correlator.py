@@ -101,6 +101,183 @@ def _user_identity(event):
 
 
 # ============================================================
+# DAY 62 MULTI-STAGE ATTACK CORRELATION
+# ============================================================
+
+ATTACK_STAGE_ORDER = (
+    "RECONNAISSANCE",
+    "ACCESS",
+    "CREDENTIAL",
+    "PRIVILEGE",
+)
+
+_RECONNAISSANCE_EVENT_TYPES = {
+    "PORT_SCAN",
+    "PORT SCAN",
+    "NETWORK_SCAN",
+    "NETWORK SCAN",
+    "RECONNAISSANCE",
+    "RECON",
+}
+
+_ACCESS_EVENT_TYPES = {
+    "SUSPICIOUS_LOGIN",
+    "SUSPICIOUS LOGIN",
+    "UNAUTHORIZED_ACCESS",
+    "UNAUTHORIZED ACCESS",
+    "INTRUSION",
+    "INITIAL_ACCESS",
+    "SUCCESSFUL_LOGIN",
+    "SUCCESSFUL LOGIN",
+}
+
+_CREDENTIAL_EVENT_TYPES = {
+    "BRUTE_FORCE",
+    "BRUTE FORCE",
+    "PASSWORD_SPRAY",
+    "PASSWORD SPRAY",
+    "CREDENTIAL_ACCESS",
+    "CREDENTIAL ACCESS",
+    "CREDENTIAL_STUFFING",
+    "CREDENTIAL STUFFING",
+    "FAILED_LOGIN",
+    "FAILED LOGIN",
+}
+
+_PRIVILEGE_EVENT_TYPES = {
+    "SUDO_ACTIVITY",
+    "SUDO ACTIVITY",
+    "PRIVILEGE_ESCALATION",
+    "PRIVILEGE ESCALATION",
+    "ROOT_ACCESS",
+    "ROOT ACCESS",
+    "ADMIN_ACCESS",
+    "ADMIN ACCESS",
+}
+
+
+def _classify_attack_stage(event):
+    """
+    Classify one event into a conservative attack stage.
+
+    Event-type mappings are deterministic. SUSPICIOUS_ACTIVITY is mapped
+    to CREDENTIAL only when its message explicitly indicates a failed
+    authentication/password event; otherwise it remains unclassified.
+    """
+    event_type = str(event.get("event_type", "")).strip().upper()
+    message = str(event.get("message", "")).strip().lower()
+
+    if event_type in _RECONNAISSANCE_EVENT_TYPES:
+        return "RECONNAISSANCE"
+
+    if event_type in _ACCESS_EVENT_TYPES:
+        return "ACCESS"
+
+    if event_type in _CREDENTIAL_EVENT_TYPES:
+        return "CREDENTIAL"
+
+    if event_type in _PRIVILEGE_EVENT_TYPES:
+        return "PRIVILEGE"
+
+    if event_type == "SUSPICIOUS_ACTIVITY":
+        credential_markers = (
+            "failed password",
+            "authentication failure",
+            "invalid user",
+            "failed login",
+        )
+        if any(marker in message for marker in credential_markers):
+            return "CREDENTIAL"
+
+    return None
+
+
+def _build_attack_stage_metadata(ordered_events):
+    """
+    Build deterministic multi-stage attack-chain evidence.
+
+    The legacy attack_pattern field is intentionally preserved for
+    backward compatibility. Day 62 adds attack_chain metadata alongside it.
+    """
+    stage_evidence = []
+
+    for event in ordered_events:
+        stage = _classify_attack_stage(event)
+        if stage is None:
+            continue
+
+        stage_evidence.append({
+            "event_id": event.get("id"),
+            "timestamp": event.get("timestamp"),
+            "event_type": event.get("event_type", "UNKNOWN"),
+            "stage": stage,
+        })
+
+    stage_sequence = []
+    transitions = []
+
+    for evidence in stage_evidence:
+        stage = evidence["stage"]
+
+        if not stage_sequence:
+            stage_sequence.append(stage)
+            continue
+
+        previous_stage = stage_sequence[-1]
+
+        if stage == previous_stage:
+            continue
+
+        transitions.append({
+            "from_stage": previous_stage,
+            "to_stage": stage,
+            "event_id": evidence["event_id"],
+            "timestamp": evidence["timestamp"],
+        })
+        stage_sequence.append(stage)
+
+    present_stages = [
+        stage
+        for stage in ATTACK_STAGE_ORDER
+        if stage in {item["stage"] for item in stage_evidence}
+    ]
+
+    forward_transitions = 0
+    backward_transitions = 0
+
+    for transition in transitions:
+        from_index = ATTACK_STAGE_ORDER.index(
+            transition["from_stage"]
+        )
+        to_index = ATTACK_STAGE_ORDER.index(
+            transition["to_stage"]
+        )
+
+        if to_index > from_index:
+            forward_transitions += 1
+        elif to_index < from_index:
+            backward_transitions += 1
+
+    multi_stage_attack = len(present_stages) >= 2
+    complete_attack_chain = all(
+        stage in present_stages
+        for stage in ATTACK_STAGE_ORDER
+    )
+
+    return {
+        "stages_present": present_stages,
+        "stage_sequence": stage_sequence,
+        "stage_count": len(present_stages),
+        "multi_stage_attack": multi_stage_attack,
+        "complete_attack_chain": complete_attack_chain,
+        "forward_transitions": forward_transitions,
+        "backward_transitions": backward_transitions,
+        "transitions": transitions,
+        "stage_evidence": stage_evidence,
+    }
+
+
+# ============================================================
 # IOC NORMALIZATION
 # ============================================================
 
@@ -516,12 +693,17 @@ def _build_correlation_metadata(
                     }
                 )
 
+    attack_chain = _build_attack_stage_metadata(
+        ordered_events
+    )
+
     return {
         "method": "TEMPORAL_IDENTITY_EVENT_CORRELATION",
         "time_window_seconds": time_window_seconds,
         "source_ips": source_ips,
         "users": users,
         "relationships": relationships,
+        "attack_chain": attack_chain,
     }
 
 
@@ -596,6 +778,7 @@ def _build_investigation_evidence(
             "correlation_method": "RULE_BASED_EVENT_CORRELATION",
         },
         "correlation": correlation_metadata,
+        "attack_chain": correlation_metadata["attack_chain"],
         "timeline": timeline,
         "investigation_summary": investigation_summary,
         "response_priority": response_priority,
@@ -711,12 +894,14 @@ def _build_incident(
 
     source_ips = correlation_metadata["source_ips"]
     users = correlation_metadata["users"]
+    attack_chain = correlation_metadata["attack_chain"]
 
     return {
         "incident_id": incident_id,
         "ip_address": ip_address,
         "source_ips": source_ips,
         "users": users,
+        "attack_chain": attack_chain,
         "event_count": len(ordered_events),
         "event_types": event_types,
         "attack_pattern": attack_pattern,

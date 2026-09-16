@@ -773,3 +773,386 @@ def test_day61_user_matching_is_case_insensitive():
 
     assert len(incidents) == 1
     assert incidents[0]["users"] == ["alice"]
+
+
+# ============================================================
+# DAY 62 — MULTI-STAGE ATTACK CORRELATION
+# ============================================================
+
+def test_day62_recon_access_credential_privilege_chain():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+            user=None,
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            4,
+            "2026-09-14T10:03:00",
+            "SUDO_ACTIVITY",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert len(incidents) == 1
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == [
+        "RECONNAISSANCE",
+        "ACCESS",
+        "CREDENTIAL",
+        "PRIVILEGE",
+    ]
+    assert chain["stage_sequence"] == [
+        "RECONNAISSANCE",
+        "ACCESS",
+        "CREDENTIAL",
+        "PRIVILEGE",
+    ]
+    assert chain["stage_count"] == 4
+    assert chain["multi_stage_attack"] is True
+    assert chain["complete_attack_chain"] is True
+    assert chain["forward_transitions"] == 3
+    assert chain["backward_transitions"] == 0
+
+
+def test_day62_two_stage_chain_is_multi_stage():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == [
+        "RECONNAISSANCE",
+        "ACCESS",
+    ]
+    assert chain["multi_stage_attack"] is True
+    assert chain["complete_attack_chain"] is False
+
+
+def test_day62_single_stage_activity_is_not_multi_stage():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == ["CREDENTIAL"]
+    assert chain["stage_count"] == 1
+    assert chain["multi_stage_attack"] is False
+    assert chain["complete_attack_chain"] is False
+
+
+def test_day62_suspicious_activity_failed_password_is_credential_stage():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "SUSPICIOUS_ACTIVITY",
+            50,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_ACTIVITY",
+            50,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+            user="alice",
+        ),
+    ]
+
+    for event in events[:2]:
+        event["message"] = (
+            "sshd: Failed password for user alice "
+            "from 10.0.0.50"
+        )
+
+    incidents = correlate_events(events)
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == ["CREDENTIAL"]
+    assert chain["multi_stage_attack"] is False
+
+
+def test_day62_unknown_events_are_not_forced_into_attack_stages():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "SECURITY_LOG",
+            20,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "WEBSOCKET_TEST",
+            20,
+            "10.0.0.50",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "TI_TEST",
+            20,
+            "10.0.0.50",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == []
+    assert chain["stage_sequence"] == []
+    assert chain["multi_stage_attack"] is False
+
+
+def test_day62_stage_transitions_are_recorded_in_order():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+        ),
+        make_event(
+            4,
+            "2026-09-14T10:03:00",
+            "SUDO_ACTIVITY",
+            70,
+            "10.0.0.50",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    transitions = incidents[0]["attack_chain"]["transitions"]
+
+    assert len(transitions) == 2
+    assert transitions[0]["from_stage"] == "RECONNAISSANCE"
+    assert transitions[0]["to_stage"] == "CREDENTIAL"
+    assert transitions[0]["event_id"] == 3
+    assert transitions[1]["from_stage"] == "CREDENTIAL"
+    assert transitions[1]["to_stage"] == "PRIVILEGE"
+    assert transitions[1]["event_id"] == 4
+
+
+def test_day62_legacy_attack_pattern_is_preserved():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "BRUTE_FORCE",
+            80,
+            "10.0.0.50",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert incidents[0]["attack_pattern"] == "BRUTE_FORCE_ACTIVITY"
+    assert incidents[0]["attack_chain"]["multi_stage_attack"] is True
+
+
+def test_day62_cross_ip_same_user_can_form_multi_stage_chain():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.10",
+            user="alice",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.20",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:02:00",
+            "SUDO_ACTIVITY",
+            70,
+            "10.0.0.20",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(events)
+
+    assert len(incidents) == 1
+
+    incident = incidents[0]
+
+    assert incident["source_ips"] == [
+        "10.0.0.10",
+        "10.0.0.20",
+    ]
+    assert incident["attack_chain"]["stages_present"] == [
+        "RECONNAISSANCE",
+        "ACCESS",
+        "PRIVILEGE",
+    ]
+    assert incident["attack_chain"]["multi_stage_attack"] is True
+
+
+def test_day62_time_window_limits_multi_stage_chain():
+    events = [
+        make_event(
+            1,
+            "2026-09-14T10:00:00",
+            "PORT_SCAN",
+            50,
+            "10.0.0.50",
+        ),
+        make_event(
+            2,
+            "2026-09-14T10:01:00",
+            "SUSPICIOUS_LOGIN",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+        make_event(
+            3,
+            "2026-09-14T10:10:00",
+            "SUDO_ACTIVITY",
+            70,
+            "10.0.0.50",
+            user="alice",
+        ),
+    ]
+
+    incidents = correlate_events(
+        events,
+        threshold=2,
+        time_window_seconds=300,
+    )
+
+    assert len(incidents) == 1
+
+    chain = incidents[0]["attack_chain"]
+
+    assert chain["stages_present"] == [
+        "RECONNAISSANCE",
+        "ACCESS",
+    ]
+    assert chain["multi_stage_attack"] is True
