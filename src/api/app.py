@@ -36,7 +36,6 @@ from src.analyzers.risk_engine import analyze_event_risk
 from src.analyzers.attack_correlator import (
     correlate_events,
     transition_incident_status,
-    _build_incident,
 )
 from src.api.websocket import socketio
 from src.ingestion import ingest_event
@@ -858,8 +857,12 @@ def promote_hunt_investigation(
     investigation_id
 ):
     """
-    Promote a hunt investigation into the existing
-    CloudSentinel security incident workflow.
+    Promote a hunt investigation by linking it to the
+    existing CloudSentinel correlated security incident.
+
+    The promotion does not create a second incident model.
+    It reuses the canonical incident produced by the existing
+    correlation engine.
     """
 
     try:
@@ -890,6 +893,21 @@ def promote_hunt_investigation(
 
         if existing_incident_id:
 
+            incidents = (
+                _build_correlated_incidents()
+            )
+
+            linked_incident = None
+
+            for incident in incidents:
+
+                if incident.get(
+                    "incident_id"
+                ) == existing_incident_id:
+
+                    linked_incident = incident
+                    break
+
             return jsonify({
                 "status": "ok",
                 "message": (
@@ -898,14 +916,20 @@ def promote_hunt_investigation(
                 ),
                 "investigation": investigation,
                 "incident_id": existing_incident_id,
+                "incident": linked_incident,
             })
 
-        event_ids = set(
-            investigation.get(
+        # ----------------------------------------------------
+        # Read the investigation snapshot
+        # ----------------------------------------------------
+
+        event_ids = {
+            int(event_id)
+            for event_id in investigation.get(
                 "event_ids",
                 []
             )
-        )
+        }
 
         if not event_ids:
 
@@ -919,164 +943,73 @@ def promote_hunt_investigation(
             }), 400
 
         # ----------------------------------------------------
-        # Restore stored security events
+        # Reuse the existing canonical incident engine
         # ----------------------------------------------------
 
-        stored_events = get_all_events()
+        incidents = (
+            _build_correlated_incidents()
+        )
 
-        selected_events = []
+        matching_incidents = []
 
-        for event in stored_events:
+        for incident in incidents:
 
-            if event[0] not in event_ids:
-                continue
-
-            # Restore persisted IOC data
-            iocs = {}
-
-            if len(event) > 7 and event[7]:
-
-                try:
-                    iocs = json.loads(event[7])
-
-                except (
-                    TypeError,
-                    ValueError,
-                    json.JSONDecodeError
-                ):
-                    iocs = {}
-
-            # Restore persisted threat intelligence
-            threat_intel = {}
-
-            if len(event) > 8 and event[8]:
-
-                try:
-                    threat_intel = json.loads(
-                        event[8]
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                    json.JSONDecodeError
-                ):
-                    threat_intel = {}
-
-            # Restore persisted TI score
-            threat_intel_score = (
-                event[9]
-                if len(event) > 9
-                and event[9] is not None
-                else 0
-            )
-
-            try:
-                threat_intel_score = int(
-                    threat_intel_score
+            incident_event_ids = {
+                int(event.get("id"))
+                for event in incident.get(
+                    "events",
+                    []
                 )
-
-            except (
-                TypeError,
-                ValueError
-            ):
-                threat_intel_score = 0
-
-            event_data = {
-                "id": event[0],
-                "timestamp": event[1],
-                "event_type": event[2],
-                "severity": event[3],
-                "message": event[4],
-                "source": event[5],
-                "ip_address": event[6],
-                "iocs": iocs,
-                "threat_intel": threat_intel,
-                "threat_intel_score": (
-                    threat_intel_score
-                )
+                if event.get("id") is not None
             }
 
-            # Calculate current CloudSentinel risk
-            analyzed_event = analyze_event_risk(
-                event_data
-            )
-
-            # Preserve persisted TI context
-            analyzed_event["iocs"] = iocs
-            analyzed_event["threat_intel"] = (
-                threat_intel
-            )
-            analyzed_event["threat_intel_score"] = (
-                threat_intel_score
-            )
-
-            selected_events.append(
-                analyzed_event
-            )
-
-        if not selected_events:
-
-            return jsonify({
-                "status": "error",
-                "message": (
-                    "None of the investigation "
-                    "event IDs exist anymore."
-                ),
-                "investigation_id": investigation_id,
-            }), 404
-
-        # ----------------------------------------------------
-        # Require a usable source IP
-        # ----------------------------------------------------
-
-        ip_addresses = sorted({
-            str(
-                event.get(
-                    "ip_address",
-                    ""
+            if event_ids.issubset(
+                incident_event_ids
+            ):
+                matching_incidents.append(
+                    incident
                 )
-            ).strip()
-            for event in selected_events
-            if event.get("ip_address")
-            and str(
-                event.get("ip_address")
-            ).strip().upper()
-            not in (
-                "UNKNOWN",
-                "N/A",
-            )
-        })
 
-        if not ip_addresses:
+        if not matching_incidents:
 
             return jsonify({
                 "status": "error",
                 "message": (
-                    "Investigation events do not "
-                    "contain a usable source IP."
+                    "No existing correlated security "
+                    "incident contains all investigation events."
                 ),
                 "investigation_id": investigation_id,
-            }), 400
+                "event_ids": sorted(event_ids),
+            }), 409
 
         # ----------------------------------------------------
-        # Build one incident from the hunted events
+        # Use the existing canonical incident
         # ----------------------------------------------------
 
-        incident_ip = ip_addresses[0]
-
-        incident_id = (
-            f"HUNT-{investigation_id:04d}"
+        incident = max(
+            matching_incidents,
+            key=lambda item: (
+                item.get("event_count", 0)
+            )
         )
 
-        incident = _build_incident(
-            incident_id=incident_id,
-            ip_address=incident_ip,
-            events=selected_events,
+        incident_id = incident.get(
+            "incident_id"
         )
 
+        if not incident_id:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Matched incident does not "
+                    "contain a valid incident ID."
+                ),
+                "investigation_id": investigation_id,
+            }), 500
+
         # ----------------------------------------------------
-        # Persist investigation → incident linkage
+        # Persist hunt → incident linkage
         # ----------------------------------------------------
 
         linked = (
@@ -1098,10 +1031,6 @@ def promote_hunt_investigation(
                 "incident_id": incident_id,
             }), 500
 
-        # ----------------------------------------------------
-        # Return updated investigation + incident
-        # ----------------------------------------------------
-
         updated_investigation = (
             storage.get_investigation(
                 investigation_id
@@ -1111,8 +1040,8 @@ def promote_hunt_investigation(
         return jsonify({
             "status": "ok",
             "message": (
-                "Hunt investigation promoted "
-                "to security incident."
+                "Hunt investigation linked to "
+                "existing security incident."
             ),
             "investigation": (
                 updated_investigation
