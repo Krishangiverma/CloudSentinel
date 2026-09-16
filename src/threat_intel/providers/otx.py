@@ -20,15 +20,6 @@ from src.threat_intel.providers.base import ThreatIntelProvider
 class OTXProvider(ThreatIntelProvider):
     """
     AlienVault OTX provider adapter.
-
-    Supported CloudSentinel IOC types:
-
-        ip
-        domain
-        url
-        md5
-        sha1
-        sha256
     """
 
     DEFAULT_BASE_URL = (
@@ -77,10 +68,6 @@ class OTXProvider(ThreatIntelProvider):
         return "otx"
 
     def _indicator_path(self, ioc):
-        """
-        Return the OTX indicator endpoint path.
-        """
-
         encoded_value = quote(
             ioc.value,
             safe="",
@@ -114,12 +101,62 @@ class OTXProvider(ThreatIntelProvider):
             f"{encoded_value}/general"
         )
 
+    @staticmethod
+    def _extract_seen_times(pulses):
+        """
+        Extract first/last observed timestamps from
+        OTX pulse metadata.
+
+        Returns:
+            tuple(first_seen, last_seen)
+        """
+
+        timestamps = []
+
+        for pulse in pulses:
+            if not isinstance(
+                pulse,
+                dict,
+            ):
+                continue
+
+            created = pulse.get(
+                "created"
+            )
+
+            modified = pulse.get(
+                "modified"
+            )
+
+            if created:
+                timestamps.append(
+                    str(created)
+                )
+
+            if modified:
+                timestamps.append(
+                    str(modified)
+                )
+
+        if not timestamps:
+            return None, None
+
+        return (
+            min(timestamps),
+            max(timestamps),
+        )
+
     def lookup(self, ioc):
         """
         Query OTX for one IOC.
 
-        Returns a normalized provider result containing
-        the OTX pulse count, reputation value and pulse names.
+        Returns normalized threat-intelligence fields:
+
+            reputation
+            confidence
+            first_seen
+            last_seen
+            source
         """
 
         if not isinstance(ioc, IOC):
@@ -169,10 +206,12 @@ class OTXProvider(ThreatIntelProvider):
             data = json.loads(
                 raw_body.decode("utf-8")
             )
+
         except (
             UnicodeDecodeError,
             json.JSONDecodeError,
         ) as exc:
+
             raise RuntimeError(
                 "OTX returned invalid JSON."
             ) from exc
@@ -206,15 +245,36 @@ class OTXProvider(ThreatIntelProvider):
                     str(name)
                 )
 
+        first_seen, last_seen = (
+            self._extract_seen_times(
+                pulses
+            )
+        )
+
         return {
             "status": "success",
             "provider": self.name,
+            "source": self.name,
             "ioc": ioc.to_dict(),
-            "found": bool(pulse_count),
+
+            "found": bool(
+                pulse_count
+            ),
+
             "pulse_count": pulse_count,
+
             "reputation": data.get(
                 "reputation"
             ),
+
+            "confidence": data.get(
+                "confidence"
+            ),
+
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+
             "pulse_names": pulse_names,
+
             "raw": data,
         }

@@ -1,35 +1,24 @@
 """
 CloudSentinel Threat Intelligence Enricher.
 
-Provides deterministic local context for extracted IOCs.
-
-This module does NOT contact external threat-intelligence
-providers. External providers can be added later as adapters.
+Provides deterministic local context for extracted IOCs
+and optionally enriches them through a threat-intelligence
+provider manager.
 """
 
 import ipaddress
 
+from src.threat_intel.ioc_model import IOC
 
-# ============================================================
-# IP CONTEXT
-# ============================================================
 
 def classify_ip(ip):
     """
-    Classify an IP address using local network information.
-
-    Returns:
-        public
-        private
-        loopback
-        reserved
-        unspecified
-        invalid
+    Classify an IP address.
     """
 
     try:
         address = ipaddress.ip_address(
-            str(ip)
+            str(ip).strip()
         )
     except ValueError:
         return "invalid"
@@ -46,39 +35,58 @@ def classify_ip(ip):
     if address.is_unspecified:
         return "unspecified"
 
-    return "public"
+    if address.is_global:
+        return "public"
 
+    return "other"
 
-# ============================================================
-# SINGLE IOC ENRICHMENT
-# ============================================================
 
 def enrich_ioc(
     ioc_type,
     value,
+    provider_manager=None,
+    provider_name=None,
 ):
     """
-    Enrich one IOC with deterministic local context.
+    Enrich one IOC.
 
-    No external network request is performed.
+    Local enrichment is always performed.
+
+    If a provider manager is supplied, the external
+    provider result is merged into the normalized
+    enrichment fields.
     """
 
-    value = str(value).strip()
+    ioc_type = str(
+        ioc_type
+    ).strip().lower()
+
+    value = str(
+        value
+    ).strip()
 
     result = {
         "ioc_type": ioc_type,
         "value": value,
+
         "source": "local",
+
         "verdict": "unknown",
+
+        "reputation": None,
+
         "confidence": 0,
+
+        "first_seen": None,
+
+        "last_seen": None,
+
         "context": "unknown",
     }
 
     if ioc_type == "ip":
 
-        context = classify_ip(
-            value
-        )
+        context = classify_ip(value)
 
         result["context"] = context
 
@@ -90,63 +98,91 @@ def enrich_ioc(
         }:
             result["verdict"] = "non_public"
 
-        return result
-
-    if ioc_type == "domain":
-
+    elif ioc_type == "domain":
         result["context"] = "domain"
 
-        return result
+    elif ioc_type == "url":
+        result["context"] = "url"
 
-    if ioc_type in {
+    elif ioc_type in {
         "md5",
         "sha1",
         "sha256",
     }:
-
         result["context"] = "file_hash"
+
+    else:
+        result["context"] = "unknown_type"
+
+    if provider_manager is None:
+        return result
+
+    ioc = IOC(
+        ioc_type,
+        value,
+    )
+
+    provider_result = provider_manager.lookup(
+        ioc,
+        provider_name=provider_name,
+    )
+
+    if provider_result.get(
+        "status"
+    ) != "success":
+        result["provider_status"] = (
+            provider_result.get(
+                "status"
+            )
+        )
 
         return result
 
-    result["context"] = "unknown_type"
+    result["source"] = provider_result.get(
+        "source",
+        provider_result.get(
+            "provider",
+            "unknown",
+        ),
+    )
+
+    result["reputation"] = (
+        provider_result.get(
+            "reputation"
+        )
+    )
+
+    result["confidence"] = (
+        provider_result.get(
+            "confidence"
+        )
+    )
+
+    result["first_seen"] = (
+        provider_result.get(
+            "first_seen"
+        )
+    )
+
+    result["last_seen"] = (
+        provider_result.get(
+            "last_seen"
+        )
+    )
+
+    result["provider_status"] = "success"
 
     return result
 
 
-# ============================================================
-# IOC COLLECTION ENRICHMENT
-# ============================================================
-
-def enrich_iocs(iocs):
+def enrich_iocs(
+    iocs,
+    provider_manager=None,
+    provider_name=None,
+):
     """
-    Enrich a complete IOC collection returned by
-    the IOC extractor.
-
-    Expected input:
-
-        {
-            "ips": [],
-            "domains": [],
-            "hashes": {
-                "md5": [],
-                "sha1": [],
-                "sha256": []
-            }
-        }
-
-    Returns:
-
-        {
-            "total": int,
-            "items": [...]
-        }
+    Enrich a collection of extracted IOCs.
     """
-
-    if not iocs:
-        return {
-            "total": 0,
-            "items": [],
-        }
 
     enriched = []
 
@@ -154,11 +190,12 @@ def enrich_iocs(iocs):
         "ips",
         [],
     ):
-
         enriched.append(
             enrich_ioc(
                 "ip",
                 ip,
+                provider_manager,
+                provider_name,
             )
         )
 
@@ -166,11 +203,25 @@ def enrich_iocs(iocs):
         "domains",
         [],
     ):
-
         enriched.append(
             enrich_ioc(
                 "domain",
                 domain,
+                provider_manager,
+                provider_name,
+            )
+        )
+
+    for url in iocs.get(
+        "urls",
+        [],
+    ):
+        enriched.append(
+            enrich_ioc(
+                "url",
+                url,
+                provider_manager,
+                provider_name,
             )
         )
 
@@ -184,16 +235,16 @@ def enrich_iocs(iocs):
         "sha1",
         "sha256",
     ):
-
         for value in hashes.get(
             hash_type,
             [],
         ):
-
             enriched.append(
                 enrich_ioc(
                     hash_type,
                     value,
+                    provider_manager,
+                    provider_name,
                 )
             )
 
@@ -203,33 +254,26 @@ def enrich_iocs(iocs):
     }
 
 
-# ============================================================
-# EVENT ENRICHMENT
-# ============================================================
-
 def enrich_event_iocs(
     event,
     ioc_extractor,
+    provider_manager=None,
+    provider_name=None,
 ):
     """
-    Extract and enrich IOCs from one event.
+    Extract and enrich IOCs from an event.
 
     The original event is not modified.
-
-    Returns:
-
-        {
-            "iocs": {...},
-            "threat_intel": {...}
-        }
     """
 
-    iocs = ioc_extractor(
+    iocs = ioc_extractor.extract_iocs(
         event
     )
 
     threat_intel = enrich_iocs(
-        iocs
+        iocs,
+        provider_manager=provider_manager,
+        provider_name=provider_name,
     )
 
     return {
