@@ -6,6 +6,8 @@ Pipeline boundary:
 Raw Event
     -> Normalize
     -> Validate
+    -> IOC Extraction
+    -> Threat Intelligence Enrichment
     -> Risk Analysis
     -> Event Bus
     -> Downstream real-time consumers
@@ -16,14 +18,20 @@ from src.ingestion.validator import validate_event
 from src.analyzers.risk_engine import calculate_risk_score
 from src.realtime.event_bus import publish
 
+from src.threat_intel.ioc_extractor import extract_iocs
+from src.threat_intel.enricher import enrich_iocs
+
 
 class EventPipeline:
     """
     Canonical entry point for CloudSentinel event ingestion.
 
-    Every successfully normalized and validated event is enriched
-    with risk information before being published to the real-time
-    event bus.
+    Every successfully normalized and validated event is:
+
+        1. Enriched with IOC information
+        2. Enriched with local threat-intelligence context
+        3. Enriched with risk information
+        4. Published to the real-time event bus
     """
 
     def __init__(self):
@@ -35,12 +43,12 @@ class EventPipeline:
         Normalize, validate and enrich one raw event.
 
         Returns:
-            validated and risk-enriched SecurityEvent
+            validated and enriched SecurityEvent
 
         Raises:
             EventValidationError
-            Any exception raised during normalization, validation,
-            or risk analysis
+            Any exception raised during normalization,
+            validation, IOC enrichment, or risk analysis
         """
 
         try:
@@ -57,7 +65,31 @@ class EventPipeline:
             event = validate_event(event)
 
             # -------------------------------------------------
-            # 3. Calculate risk before real-time publication
+            # 3. Extract IOCs from the canonical event
+            # -------------------------------------------------
+
+            iocs = extract_iocs(event)
+
+            # -------------------------------------------------
+            # 4. Enrich extracted IOCs with local context
+            # -------------------------------------------------
+
+            threat_intel = enrich_iocs(iocs)
+
+            # -------------------------------------------------
+            # 5. Attach IOC and threat-intelligence data
+            #
+            # We do not modify the SecurityEvent dataclass yet.
+            # This keeps existing consumers backward compatible.
+            # -------------------------------------------------
+
+            event.iocs = iocs
+            event.threat_intel = threat_intel
+
+            # -------------------------------------------------
+            # 6. Calculate existing risk score
+            #
+            # Day 40 does NOT change the risk formula.
             # -------------------------------------------------
 
             risk = calculate_risk_score(
@@ -75,13 +107,13 @@ class EventPipeline:
             raise
 
         # -----------------------------------------------------
-        # 4. Track successfully processed event
+        # 7. Track successfully processed event
         # -----------------------------------------------------
 
         self.events_processed += 1
 
         # -----------------------------------------------------
-        # 5. Publish enriched event to real-time event bus
+        # 8. Publish enriched event to existing Event Bus
         # -----------------------------------------------------
 
         publish(event)
