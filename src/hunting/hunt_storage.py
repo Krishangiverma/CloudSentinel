@@ -56,7 +56,8 @@ class HuntStorage:
                     event_ids_json TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'OPEN',
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    incident_id TEXT
                 )
                 """
             )
@@ -289,6 +290,7 @@ class HuntStorage:
         query,
         event_ids,
         status="OPEN",
+        incident_id=None,
     ):
         """
         Create an investigation snapshot.
@@ -342,9 +344,10 @@ class HuntStorage:
                     event_ids_json,
                     status,
                     created_at,
-                    updated_at
+                    updated_at,
+                    incident_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     title,
@@ -353,6 +356,7 @@ class HuntStorage:
                     status,
                     now,
                     now,
+                    incident_id,
                 )
             )
 
@@ -380,7 +384,8 @@ class HuntStorage:
                     event_ids_json,
                     status,
                     created_at,
-                    updated_at
+                    updated_at,
+                    incident_id
                 FROM hunt_investigations
                 ORDER BY id DESC
                 """
@@ -406,6 +411,7 @@ class HuntStorage:
                     "status": row[4],
                     "created_at": row[5],
                     "updated_at": row[6],
+                    "incident_id": row[7],
                 }
             )
 
@@ -428,7 +434,8 @@ class HuntStorage:
                     event_ids_json,
                     status,
                     created_at,
-                    updated_at
+                    updated_at,
+                    incident_id
                 FROM hunt_investigations
                 WHERE id = ?
                 """,
@@ -451,7 +458,63 @@ class HuntStorage:
             "status": row[4],
             "created_at": row[5],
             "updated_at": row[6],
+            "incident_id": row[7],
         }
+
+    def link_investigation_to_incident(
+        self,
+        investigation_id,
+        incident_id,
+    ):
+        """
+        Link a hunt investigation to an existing CloudSentinel
+        security incident.
+        """
+
+        if incident_id is None:
+            raise ValueError(
+                "incident_id cannot be None"
+            )
+
+        incident_id = str(
+            incident_id
+        ).strip()
+
+        if not incident_id:
+            raise ValueError(
+                "incident_id cannot be empty"
+            )
+
+        connection = self._connect()
+
+        try:
+            cursor = connection.cursor()
+
+            cursor.execute(
+                """
+                UPDATE hunt_investigations
+                SET
+                    incident_id = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    incident_id,
+                    self._now(),
+                    investigation_id,
+                )
+            )
+
+            updated = (
+                cursor.rowcount > 0
+            )
+
+            connection.commit()
+
+            return updated
+
+        finally:
+            connection.close()
 
     def get_investigation_timeline(
         self,

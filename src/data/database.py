@@ -178,6 +178,37 @@ def _migrate_hunting_tables(cursor):
 
 
 # ============================================================
+# Day-51 Hunt Investigation Migration
+# ============================================================
+
+def _migrate_hunt_investigations_table(cursor):
+    """
+    Add Day-51 hunt-to-incident linkage.
+
+    Existing investigations remain valid because incident_id
+    is nullable.
+    """
+
+    cursor.execute(
+        "PRAGMA table_info(hunt_investigations)"
+    )
+
+    columns = {
+        row[1]
+        for row in cursor.fetchall()
+    }
+
+    if "incident_id" not in columns:
+
+        cursor.execute(
+            """
+            ALTER TABLE hunt_investigations
+            ADD COLUMN incident_id TEXT
+            """
+        )
+
+
+# ============================================================
 # Initialize Database
 # ============================================================
 
@@ -224,6 +255,12 @@ def initialize_database():
     # --------------------------------------------------------
 
     _migrate_hunting_tables(cursor)
+
+    # --------------------------------------------------------
+    # Day-51 Hunt-to-Incident Migration
+    # --------------------------------------------------------
+
+    _migrate_hunt_investigations_table(cursor)
 
     # --------------------------------------------------------
     # Incident Status Table

@@ -36,6 +36,7 @@ from src.analyzers.risk_engine import analyze_event_risk
 from src.analyzers.attack_correlator import (
     correlate_events,
     transition_incident_status,
+    _build_incident,
 )
 from src.api.websocket import socketio
 from src.ingestion import ingest_event
@@ -843,6 +844,292 @@ def get_hunt_investigation_timeline(
             "error": str(e),
         }), 500
 
+
+
+# ============================================================
+# PROMOTE HUNT INVESTIGATION TO SECURITY INCIDENT
+# ============================================================
+
+@app.route(
+    "/api/hunts/investigations/<int:investigation_id>/promote",
+    methods=["POST"]
+)
+def promote_hunt_investigation(
+    investigation_id
+):
+    """
+    Promote a hunt investigation into the existing
+    CloudSentinel security incident workflow.
+    """
+
+    try:
+
+        storage = HuntStorage()
+
+        investigation = (
+            storage.get_investigation(
+                investigation_id
+            )
+        )
+
+        if investigation is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Investigation not found.",
+                "investigation_id": investigation_id,
+            }), 404
+
+        # ----------------------------------------------------
+        # Prevent duplicate promotion
+        # ----------------------------------------------------
+
+        existing_incident_id = (
+            investigation.get("incident_id")
+        )
+
+        if existing_incident_id:
+
+            return jsonify({
+                "status": "ok",
+                "message": (
+                    "Investigation is already linked "
+                    "to a security incident."
+                ),
+                "investigation": investigation,
+                "incident_id": existing_incident_id,
+            })
+
+        event_ids = set(
+            investigation.get(
+                "event_ids",
+                []
+            )
+        )
+
+        if not event_ids:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Investigation contains no "
+                    "events to promote."
+                ),
+                "investigation_id": investigation_id,
+            }), 400
+
+        # ----------------------------------------------------
+        # Restore stored security events
+        # ----------------------------------------------------
+
+        stored_events = get_all_events()
+
+        selected_events = []
+
+        for event in stored_events:
+
+            if event[0] not in event_ids:
+                continue
+
+            # Restore persisted IOC data
+            iocs = {}
+
+            if len(event) > 7 and event[7]:
+
+                try:
+                    iocs = json.loads(event[7])
+
+                except (
+                    TypeError,
+                    ValueError,
+                    json.JSONDecodeError
+                ):
+                    iocs = {}
+
+            # Restore persisted threat intelligence
+            threat_intel = {}
+
+            if len(event) > 8 and event[8]:
+
+                try:
+                    threat_intel = json.loads(
+                        event[8]
+                    )
+
+                except (
+                    TypeError,
+                    ValueError,
+                    json.JSONDecodeError
+                ):
+                    threat_intel = {}
+
+            # Restore persisted TI score
+            threat_intel_score = (
+                event[9]
+                if len(event) > 9
+                and event[9] is not None
+                else 0
+            )
+
+            try:
+                threat_intel_score = int(
+                    threat_intel_score
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
+                threat_intel_score = 0
+
+            event_data = {
+                "id": event[0],
+                "timestamp": event[1],
+                "event_type": event[2],
+                "severity": event[3],
+                "message": event[4],
+                "source": event[5],
+                "ip_address": event[6],
+                "iocs": iocs,
+                "threat_intel": threat_intel,
+                "threat_intel_score": (
+                    threat_intel_score
+                )
+            }
+
+            # Calculate current CloudSentinel risk
+            analyzed_event = analyze_event_risk(
+                event_data
+            )
+
+            # Preserve persisted TI context
+            analyzed_event["iocs"] = iocs
+            analyzed_event["threat_intel"] = (
+                threat_intel
+            )
+            analyzed_event["threat_intel_score"] = (
+                threat_intel_score
+            )
+
+            selected_events.append(
+                analyzed_event
+            )
+
+        if not selected_events:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "None of the investigation "
+                    "event IDs exist anymore."
+                ),
+                "investigation_id": investigation_id,
+            }), 404
+
+        # ----------------------------------------------------
+        # Require a usable source IP
+        # ----------------------------------------------------
+
+        ip_addresses = sorted({
+            str(
+                event.get(
+                    "ip_address",
+                    ""
+                )
+            ).strip()
+            for event in selected_events
+            if event.get("ip_address")
+            and str(
+                event.get("ip_address")
+            ).strip().upper()
+            not in (
+                "UNKNOWN",
+                "N/A",
+            )
+        })
+
+        if not ip_addresses:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Investigation events do not "
+                    "contain a usable source IP."
+                ),
+                "investigation_id": investigation_id,
+            }), 400
+
+        # ----------------------------------------------------
+        # Build one incident from the hunted events
+        # ----------------------------------------------------
+
+        incident_ip = ip_addresses[0]
+
+        incident_id = (
+            f"HUNT-{investigation_id:04d}"
+        )
+
+        incident = _build_incident(
+            incident_id=incident_id,
+            ip_address=incident_ip,
+            events=selected_events,
+        )
+
+        # ----------------------------------------------------
+        # Persist investigation → incident linkage
+        # ----------------------------------------------------
+
+        linked = (
+            storage.link_investigation_to_incident(
+                investigation_id,
+                incident_id,
+            )
+        )
+
+        if not linked:
+
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Failed to link investigation "
+                    "to security incident."
+                ),
+                "investigation_id": investigation_id,
+                "incident_id": incident_id,
+            }), 500
+
+        # ----------------------------------------------------
+        # Return updated investigation + incident
+        # ----------------------------------------------------
+
+        updated_investigation = (
+            storage.get_investigation(
+                investigation_id
+            )
+        )
+
+        return jsonify({
+            "status": "ok",
+            "message": (
+                "Hunt investigation promoted "
+                "to security incident."
+            ),
+            "investigation": (
+                updated_investigation
+            ),
+            "incident": incident,
+        }), 201
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": (
+                "Failed to promote hunt "
+                "investigation."
+            ),
+            "error": str(e),
+        }), 500
 
 
 # ============================================================
