@@ -1,14 +1,37 @@
 """
 CloudSentinel Detection Engine.
 
-Detects suspicious activity from security log entries
-and provides backward-compatible helpers for the
-legacy detection API.
+Day 36:
+    Rule-engine based detection abstraction.
+
+The legacy public functions are preserved:
+    extract_ip()
+    detect_suspicious_events()
+    analyze_logs()
+    detect_suspicious_event()
+
+Detection rules are now evaluated through the reusable
+RuleEngine instead of keeping individual message-matching
+rules hardcoded inside the main detection function.
 """
 
 import re
 from collections import defaultdict
 
+from src.rules.rule_engine import RuleEngine
+from src.rules.default_rules import DEFAULT_RULES
+
+
+# ============================================================
+# RULE ENGINE
+# ============================================================
+
+DETECTION_ENGINE = RuleEngine(DEFAULT_RULES)
+
+
+# ============================================================
+# HELPERS
+# ============================================================
 
 def extract_ip(log_line):
     """
@@ -37,8 +60,8 @@ def extract_ip(log_line):
 
 def _get_message(log_entry):
     """
-    Convert both old string-format logs and new
-    dictionary-format logs into one message string.
+    Convert old string logs and dictionary logs
+    into one message string.
     """
 
     if isinstance(log_entry, dict):
@@ -54,7 +77,7 @@ def _get_message(log_entry):
 
 def _get_source(log_entry):
     """
-    Get log source from dictionary.
+    Get log source from a dictionary entry.
     """
 
     if isinstance(log_entry, dict):
@@ -66,52 +89,37 @@ def _get_source(log_entry):
     return "unknown"
 
 
-def _classify_event(message):
+def _normalize_entry(log_entry):
     """
-    Classify an individual security-related log message.
+    Convert a legacy string or dictionary log into the
+    normalized event structure consumed by RuleEngine.
     """
 
-    text = message.lower()
+    message = _get_message(log_entry)
+    source = _get_source(log_entry)
 
-    # SSH failed login
-    if "failed password" in text:
-        return "SUSPICIOUS_ACTIVITY", "MEDIUM"
+    ip = extract_ip(log_entry)
 
-    # Invalid SSH user
-    if "invalid user" in text:
-        return "SUSPICIOUS_ACTIVITY", "MEDIUM"
+    return {
+        "message": message,
+        "source": source,
+        "ip": ip if ip else "N/A",
+    }
 
-    # Authentication failure
-    if "authentication failure" in text:
-        return "SUSPICIOUS_ACTIVITY", "MEDIUM"
 
-    # Brute-force related keywords
-    if "brute force" in text:
-        return "BRUTE_FORCE", "HIGH"
-
-    # sudo activity
-    if "sudo:" in text or "sudo " in text:
-        return "SUDO_ACTIVITY", "MEDIUM"
-
-    # System/security messages
-    if "session opened" in text:
-        return "SECURITY_LOG", "LOW"
-
-    if "session closed" in text:
-        return "SECURITY_LOG", "LOW"
-
-    if "cron" in text:
-        return "SECURITY_LOG", "LOW"
-
-    return None, None
-
+# ============================================================
+# BRUTE-FORCE AGGREGATION
+# ============================================================
 
 def _detect_brute_force(log_entries):
     """
-    Detect repeated failed login attempts from the same IP.
+    Detect repeated authentication failures from the same IP.
 
-    Threshold:
-        3 or more failed attempts = BRUTE_FORCE / HIGH
+    Current compatibility threshold:
+        3 or more failures = BRUTE_FORCE / HIGH
+
+    The aggregation logic remains separate from the generic
+    RuleEngine because it requires state across multiple events.
     """
 
     failed_attempts = defaultdict(list)
@@ -155,6 +163,10 @@ def _detect_brute_force(log_entries):
     return brute_force_events
 
 
+# ============================================================
+# MAIN DETECTION ENGINE
+# ============================================================
+
 def detect_suspicious_events(logs):
     """
     Main CloudSentinel detection engine.
@@ -164,7 +176,11 @@ def detect_suspicious_events(logs):
         - list of dictionaries
 
     Returns:
-        list of normalized security event dictionaries.
+        List of normalized security event dictionaries.
+
+    Individual detections are evaluated through RuleEngine.
+    Multi-event brute-force correlation remains a separate
+    aggregation step.
     """
 
     events = []
@@ -173,36 +189,34 @@ def detect_suspicious_events(logs):
         return events
 
     # ---------------------------------------------------------
-    # STEP 1: Analyze individual log entries
+    # STEP 1: Evaluate individual entries through RuleEngine
     # ---------------------------------------------------------
 
     for entry in logs:
 
-        message = _get_message(entry)
-        source = _get_source(entry)
+        normalized_entry = _normalize_entry(entry)
 
-        if not message:
+        if not normalized_entry["message"]:
             continue
 
-        event_type, severity = _classify_event(message)
+        detections = DETECTION_ENGINE.evaluate(
+            normalized_entry
+        )
 
-        if event_type is None:
-            continue
+        for detection in detections:
 
-        ip = extract_ip(entry)
+            event = {
+                "event_type": detection["event_type"],
+                "severity": detection["severity"],
+                "message": detection["message"],
+                "source": detection["source"],
+                "ip": detection["ip"],
+            }
 
-        event = {
-            "event_type": event_type,
-            "severity": severity,
-            "message": message,
-            "source": source,
-            "ip": ip if ip else "N/A",
-        }
-
-        events.append(event)
+            events.append(event)
 
     # ---------------------------------------------------------
-    # STEP 2: Detect brute-force attacks
+    # STEP 2: Multi-event brute-force detection
     # ---------------------------------------------------------
 
     brute_force_events = _detect_brute_force(logs)
@@ -210,7 +224,7 @@ def detect_suspicious_events(logs):
     events.extend(brute_force_events)
 
     # ---------------------------------------------------------
-    # STEP 3: Remove duplicate brute-force alerts
+    # STEP 3: Remove duplicates
     # ---------------------------------------------------------
 
     unique_events = []
@@ -233,10 +247,13 @@ def detect_suspicious_events(logs):
     return unique_events
 
 
+# ============================================================
+# BACKWARD COMPATIBILITY
+# ============================================================
+
 def analyze_logs(logs):
     """
-    Backward-compatible wrapper around the current
-    detection engine.
+    Backward-compatible wrapper.
     """
 
     return detect_suspicious_events(logs)
@@ -245,17 +262,11 @@ def analyze_logs(logs):
 def detect_suspicious_event(event):
     """
     Legacy singular-event compatibility wrapper.
-
-    Older CloudSentinel code expects:
-
-        detect_suspicious_event(event)
-
-    The current detector operates on a list, so this wrapper
-    analyzes one event and returns the first detected event,
-    or None when the event is not suspicious.
     """
 
-    detected = detect_suspicious_events([event])
+    detected = detect_suspicious_events(
+        [event]
+    )
 
     if detected:
         return detected[0]
