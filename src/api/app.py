@@ -44,6 +44,11 @@ from src.mitre.registry import (
     build_detection_mitre_mappings,
     find_detection_mitre_mapping,
 )
+from src.hunting.hunt_engine import (
+    HuntEngine,
+    HuntQuery,
+)
+from src.hunting.hunt_storage import HuntStorage
 
 
 # ============================================================
@@ -455,6 +460,389 @@ def create_event():
             "message": "Failed to save security event.",
             "error": str(e)
         }), 500
+
+
+# ============================================================
+# DAY-50 THREAT HUNTING API
+# ============================================================
+
+def _build_hunt_query(data):
+    """Build a HuntQuery from request JSON."""
+
+    data = data or {}
+
+    return HuntQuery(
+        ip=data.get("ip"),
+        user=data.get("user"),
+        event_type=data.get("event_type"),
+        severity=data.get("severity"),
+        start_time=data.get("start_time"),
+        end_time=data.get("end_time"),
+        min_risk=data.get("min_risk"),
+        max_risk=data.get("max_risk"),
+    )
+
+
+@app.route(
+    "/api/hunts/search",
+    methods=["POST"]
+)
+def hunt_search():
+    """Execute a threat-hunting query."""
+
+    try:
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        query = _build_hunt_query(data)
+
+        engine = HuntEngine()
+
+        results = engine.search(query)
+
+        return jsonify({
+            "status": "ok",
+            "count": len(results),
+            "query": query.to_dict(),
+            "results": results,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to execute hunt query.",
+            "error": str(e),
+        }), 400
+
+
+@app.route(
+    "/api/hunts/saved",
+    methods=["POST"]
+)
+def save_hunt_query():
+    """Save a reusable threat-hunting query."""
+
+    try:
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        name = data.get("name")
+        description = data.get("description")
+
+        query = _build_hunt_query(
+            data.get("query", data)
+        )
+
+        storage = HuntStorage()
+
+        query_id = storage.save_query(
+            name=name,
+            description=description,
+            query=query,
+        )
+
+        saved = storage.get_query(
+            query_id
+        )
+
+        return jsonify({
+            "status": "ok",
+            "message": "Hunt query saved.",
+            "query": saved,
+        }), 201
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to save hunt query.",
+            "error": str(e),
+        }), 400
+
+
+@app.route(
+    "/api/hunts/saved",
+    methods=["GET"]
+)
+def list_saved_hunts():
+    """Return all saved hunting queries."""
+
+    try:
+
+        storage = HuntStorage()
+
+        queries = storage.list_queries()
+
+        return jsonify({
+            "status": "ok",
+            "count": len(queries),
+            "queries": queries,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to list saved hunt queries.",
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/hunts/saved/<int:query_id>",
+    methods=["GET"]
+)
+def get_saved_hunt(query_id):
+    """Return one saved hunting query."""
+
+    try:
+
+        storage = HuntStorage()
+
+        saved = storage.get_query(
+            query_id
+        )
+
+        if saved is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Saved hunt query not found.",
+                "query_id": query_id,
+            }), 404
+
+        return jsonify({
+            "status": "ok",
+            "query": saved,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve saved hunt query.",
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/hunts/saved/<int:query_id>",
+    methods=["DELETE"]
+)
+def delete_saved_hunt(query_id):
+    """Delete one saved hunting query."""
+
+    try:
+
+        storage = HuntStorage()
+
+        deleted = storage.delete_query(
+            query_id
+        )
+
+        if not deleted:
+
+            return jsonify({
+                "status": "error",
+                "message": "Saved hunt query not found.",
+                "query_id": query_id,
+            }), 404
+
+        return jsonify({
+            "status": "ok",
+            "message": "Saved hunt query deleted.",
+            "query_id": query_id,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to delete saved hunt query.",
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/hunts/investigations",
+    methods=["POST"]
+)
+def create_hunt_investigation():
+    """Create an investigation from a hunt query."""
+
+    try:
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        title = data.get(
+            "title",
+            "Threat Hunting Investigation"
+        )
+
+        query = _build_hunt_query(
+            data.get("query", data)
+        )
+
+        engine = HuntEngine()
+
+        results = engine.search(query)
+
+        event_ids = [
+            result["id"]
+            for result in results
+        ]
+
+        storage = HuntStorage()
+
+        investigation_id = (
+            storage.create_investigation(
+                title=title,
+                query=query,
+                event_ids=event_ids,
+            )
+        )
+
+        investigation = (
+            storage.get_investigation(
+                investigation_id
+            )
+        )
+
+        return jsonify({
+            "status": "ok",
+            "message": "Investigation created.",
+            "investigation": investigation,
+        }), 201
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to create investigation.",
+            "error": str(e),
+        }), 400
+
+
+@app.route(
+    "/api/hunts/investigations",
+    methods=["GET"]
+)
+def list_hunt_investigations():
+    """Return all hunting investigations."""
+
+    try:
+
+        storage = HuntStorage()
+
+        investigations = (
+            storage.list_investigations()
+        )
+
+        return jsonify({
+            "status": "ok",
+            "count": len(investigations),
+            "investigations": investigations,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to list investigations.",
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/hunts/investigations/<int:investigation_id>",
+    methods=["GET"]
+)
+def get_hunt_investigation(
+    investigation_id
+):
+    """Return one hunting investigation."""
+
+    try:
+
+        storage = HuntStorage()
+
+        investigation = (
+            storage.get_investigation(
+                investigation_id
+            )
+        )
+
+        if investigation is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Investigation not found.",
+                "investigation_id": investigation_id,
+            }), 404
+
+        return jsonify({
+            "status": "ok",
+            "investigation": investigation,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve investigation.",
+            "error": str(e),
+        }), 500
+
+
+@app.route(
+    "/api/hunts/investigations/<int:investigation_id>/timeline",
+    methods=["GET"]
+)
+def get_hunt_investigation_timeline(
+    investigation_id
+):
+    """Return the chronological timeline of an investigation."""
+
+    try:
+
+        storage = HuntStorage()
+
+        timeline = (
+            storage.get_investigation_timeline(
+                investigation_id
+            )
+        )
+
+        if timeline is None:
+
+            return jsonify({
+                "status": "error",
+                "message": "Investigation not found.",
+                "investigation_id": investigation_id,
+            }), 404
+
+        return jsonify({
+            "status": "ok",
+            "investigation_id": investigation_id,
+            "count": len(timeline),
+            "timeline": timeline,
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve investigation timeline.",
+            "error": str(e),
+        }), 500
+
 
 
 # ============================================================

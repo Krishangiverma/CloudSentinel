@@ -139,6 +139,45 @@ def _migrate_security_events_table(cursor):
 
 
 # ============================================================
+# Day-50 Hunting Tables Migration
+# ============================================================
+
+def _migrate_hunting_tables(cursor):
+    """
+    Create Day-50 threat-hunting persistence tables.
+
+    Existing security event data is not modified.
+    """
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS saved_hunt_queries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            query_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS hunt_investigations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            query_json TEXT NOT NULL,
+            event_ids_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'OPEN',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+# ============================================================
 # Initialize Database
 # ============================================================
 
@@ -179,6 +218,12 @@ def initialize_database():
     # --------------------------------------------------------
 
     _migrate_security_events_table(cursor)
+
+    # --------------------------------------------------------
+    # Day-50 Hunting Tables
+    # --------------------------------------------------------
+
+    _migrate_hunting_tables(cursor)
 
     # --------------------------------------------------------
     # Incident Status Table
