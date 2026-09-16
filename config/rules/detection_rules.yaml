@@ -1,57 +1,132 @@
 rules:
-  - name: ssh_failed_password
+
+  # ==========================================================
+  # AUTHENTICATION RULES
+  # ==========================================================
+
+  - id: AUTH-001
+    name: ssh_failed_password
+    description: Detect failed SSH password authentication attempts.
+    category: authentication
     condition: "failed password"
     threshold: 1
     window: 60
     severity: MEDIUM
     MITRE: T1110
+    enabled: true
+    tags:
+      - ssh
+      - authentication
+      - failed-login
 
-  - name: ssh_invalid_user
+  - id: AUTH-002
+    name: ssh_invalid_user
+    description: Detect SSH authentication attempts against invalid users.
+    category: authentication
     condition: "invalid user"
     threshold: 1
     window: 60
     severity: MEDIUM
     MITRE: T1078
+    enabled: true
+    tags:
+      - ssh
+      - authentication
+      - invalid-user
 
-  - name: authentication_failure
+  - id: AUTH-003
+    name: authentication_failure
+    description: Detect generic authentication failure events.
+    category: authentication
     condition: "authentication failure"
     threshold: 1
     window: 60
     severity: MEDIUM
     MITRE: T1110
+    enabled: true
+    tags:
+      - authentication
+      - failed-login
 
-  - name: brute_force
+  - id: AUTH-004
+    name: brute_force
+    description: Detect explicit brute-force activity indicators.
+    category: authentication
     condition: "brute force"
     threshold: 3
     window: 60
     severity: HIGH
     MITRE: T1110
+    enabled: true
+    tags:
+      - brute-force
+      - authentication
+      - ssh
 
-  - name: sudo_activity
+  # ==========================================================
+  # PRIVILEGE RULES
+  # ==========================================================
+
+  - id: PRIV-001
+    name: sudo_activity
+    description: Detect sudo-related privilege activity.
+    category: privilege
     condition: "sudo:"
     threshold: 1
     window: 60
     severity: MEDIUM
     MITRE: T1548.003
+    enabled: true
+    tags:
+      - sudo
+      - privilege-escalation
 
-  - name: session_opened
+  # ==========================================================
+  # SESSION RULES
+  # ==========================================================
+
+  - id: SESSION-001
+    name: session_opened
+    description: Detect user session creation events.
+    category: session
     condition: "session opened"
     threshold: 1
     window: 60
     severity: LOW
     MITRE: T1078
+    enabled: true
+    tags:
+      - session
+      - authentication
 
-  - name: session_closed
+  - id: SESSION-002
+    name: session_closed
+    description: Detect user session termination events.
+    category: session
     condition: "session closed"
     threshold: 1
     window: 60
     severity: LOW
     MITRE: T1078
+    enabled: true
+    tags:
+      - session
+      - authentication
 
-  - name: cron_activity
+  # ==========================================================
+  # SCHEDULED TASK RULES
+  # ==========================================================
+
+  - id: SCHED-001
+    name: cron_activity
+    description: Detect cron-related activity in security logs.
+    category: scheduled-task
     condition: "cron"
     threshold: 1
     window: 60
     severity: LOW
     MITRE: T1053
-
+    enabled: true
+    tags:
+      - cron
+      - scheduled-task

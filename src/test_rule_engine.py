@@ -135,3 +135,122 @@ def test_invalid_rule_registration_is_rejected():
         assert False, "Expected TypeError"
     except TypeError as error:
         assert "DetectionRule" in str(error)
+# ============================================================
+# DAY 39 RULE MANAGEMENT TESTS
+# ============================================================
+
+def test_disabled_rule_does_not_match():
+    rule = DetectionRule(
+        name="disabled_rule",
+        condition=lambda event: True,
+        event_type="TEST",
+        severity="LOW",
+        enabled=False,
+    )
+
+    engine = RuleEngine([rule])
+
+    event = {
+        "message": "test event"
+    }
+
+    assert engine.evaluate(event) == []
+
+
+def test_rule_can_be_disabled_and_enabled():
+    rule = DetectionRule(
+        name="toggle_rule",
+        condition=lambda event: True,
+        event_type="TEST",
+        severity="LOW",
+    )
+
+    engine = RuleEngine([rule])
+
+    event = {
+        "message": "test event"
+    }
+
+    assert len(
+        engine.evaluate(event)
+    ) == 1
+
+    assert engine.disable(
+        "toggle_rule"
+    ) is True
+
+    assert engine.evaluate(event) == []
+
+    assert engine.enable(
+        "toggle_rule"
+    ) is True
+
+    assert len(
+        engine.evaluate(event)
+    ) == 1
+
+
+def test_duplicate_rule_names_are_rejected():
+    rule_one = DetectionRule(
+        name="duplicate",
+        condition=lambda event: True,
+        event_type="TEST",
+        severity="LOW",
+    )
+
+    rule_two = DetectionRule(
+        name="duplicate",
+        condition=lambda event: True,
+        event_type="TEST",
+        severity="LOW",
+    )
+
+    engine = RuleEngine([rule_one])
+
+    try:
+        engine.register(rule_two)
+        assert False, "Expected ValueError"
+    except ValueError as error:
+        assert "Duplicate rule name" in str(error)
+
+
+def test_rule_statistics():
+    rules = [
+        DetectionRule(
+            name="rule_one",
+            condition=lambda event: True,
+            event_type="TEST",
+            severity="HIGH",
+            category="authentication",
+        ),
+        DetectionRule(
+            name="rule_two",
+            condition=lambda event: True,
+            event_type="TEST",
+            severity="MEDIUM",
+            category="authentication",
+        ),
+        DetectionRule(
+            name="rule_three",
+            condition=lambda event: True,
+            event_type="TEST",
+            severity="LOW",
+            category="network",
+            enabled=False,
+        ),
+    ]
+
+    engine = RuleEngine(rules)
+
+    stats = engine.statistics()
+
+    assert stats["total"] == 3
+    assert stats["enabled"] == 2
+    assert stats["disabled"] == 1
+
+    assert stats["severity"]["HIGH"] == 1
+    assert stats["severity"]["MEDIUM"] == 1
+    assert stats["severity"]["LOW"] == 1
+
+    assert stats["categories"]["authentication"] == 2
+    assert stats["categories"]["network"] == 1

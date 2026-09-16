@@ -149,3 +149,158 @@ rules:
         )
 
         assert rules[0].event_type == "SECURITY_LOG"
+# ============================================================
+# DAY 39 VALIDATION TESTS
+# ============================================================
+
+def test_invalid_severity_is_rejected():
+    yaml_content = """
+rules:
+  - name: invalid_severity
+    condition: "failed password"
+    threshold: 1
+    window: 60
+    severity: UNKNOWN
+    MITRE: T1110
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "rules.yaml"
+
+        path.write_text(
+            yaml_content,
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            load_rules_from_yaml(
+                str(path)
+            )
+
+
+def test_invalid_threshold_is_rejected():
+    yaml_content = """
+rules:
+  - name: invalid_threshold
+    condition: "failed password"
+    threshold: 0
+    window: 60
+    severity: HIGH
+    MITRE: T1110
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "rules.yaml"
+
+        path.write_text(
+            yaml_content,
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            load_rules_from_yaml(
+                str(path)
+            )
+
+
+def test_invalid_window_is_rejected():
+    yaml_content = """
+rules:
+  - name: invalid_window
+    condition: "failed password"
+    threshold: 1
+    window: 0
+    severity: HIGH
+    MITRE: T1110
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "rules.yaml"
+
+        path.write_text(
+            yaml_content,
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            load_rules_from_yaml(
+                str(path)
+            )
+
+
+def test_duplicate_rule_names_are_rejected():
+    yaml_content = """
+rules:
+  - name: duplicate_rule
+    condition: "failed password"
+    threshold: 1
+    window: 60
+    severity: HIGH
+    MITRE: T1110
+
+  - name: duplicate_rule
+    condition: "invalid user"
+    threshold: 1
+    window: 60
+    severity: MEDIUM
+    MITRE: T1078
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "rules.yaml"
+
+        path.write_text(
+            yaml_content,
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError):
+            load_rules_from_yaml(
+                str(path)
+            )
+
+
+def test_optional_rule_metadata_is_loaded():
+    yaml_content = """
+rules:
+  - id: AUTH-001
+    name: ssh_test
+    description: Detect SSH authentication attacks
+    category: authentication
+    condition: "failed password"
+    threshold: 3
+    window: 60
+    severity: HIGH
+    MITRE: T1110
+    enabled: true
+    tags:
+      - ssh
+      - authentication
+      - brute-force
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "rules.yaml"
+
+        path.write_text(
+            yaml_content,
+            encoding="utf-8",
+        )
+
+        rules = load_rules_from_yaml(
+            str(path)
+        )
+
+        rule = rules[0]
+
+        assert rule.rule_id == "AUTH-001"
+        assert rule.description == (
+            "Detect SSH authentication attacks"
+        )
+        assert rule.category == "authentication"
+        assert rule.enabled is True
+        assert rule.tags == [
+            "ssh",
+            "authentication",
+            "brute-force",
+        ]
