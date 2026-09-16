@@ -109,19 +109,24 @@ def health_check():
 def get_events():
     """
     Return all security events stored in the database.
+
+    Includes:
+        - IOC information
+        - Threat-intelligence information
+        - Threat-intelligence risk contribution
+        - Final risk score
+        - Final risk level
     """
 
     try:
 
-        # Get events from database
         events = get_all_events()
 
         result = []
 
-        # Convert database tuples into JSON objects
         for event in events:
 
-            result.append({
+            event_data = {
                 "id": event[0],
                 "timestamp": event[1],
                 "event_type": event[2],
@@ -129,9 +134,99 @@ def get_events():
                 "message": event[4],
                 "source": event[5],
                 "ip_address": event[6],
-                        "risk_score": analyze_event_risk({"severity": event[3], "event_type": event[2]})["risk_score"],
-                        "risk_level": analyze_event_risk({"severity": event[3], "event_type": event[2]})["risk_level"]
+            }
+
+            # ------------------------------------------------
+            # Load persisted IOC data
+            # ------------------------------------------------
+
+            iocs = {}
+
+            if len(event) > 7 and event[7]:
+
+                try:
+                    import json
+
+                    iocs = json.loads(event[7])
+
+                except (
+                    TypeError,
+                    ValueError,
+                    json.JSONDecodeError
+                ):
+                    iocs = {}
+
+            # ------------------------------------------------
+            # Load persisted threat-intelligence data
+            # ------------------------------------------------
+
+            threat_intel = {}
+
+            if len(event) > 8 and event[8]:
+
+                try:
+                    import json
+
+                    threat_intel = json.loads(event[8])
+
+                except (
+                    TypeError,
+                    ValueError,
+                    json.JSONDecodeError
+                ):
+                    threat_intel = {}
+
+            # ------------------------------------------------
+            # Persisted TI score
+            # ------------------------------------------------
+
+            threat_intel_score = (
+                event[9]
+                if len(event) > 9 and event[9] is not None
+                else 0
+            )
+
+            # ------------------------------------------------
+            # Risk calculation
+            #
+            # Historical events already have their
+            # threat-intelligence contribution persisted.
+            # Reuse that value so API results remain
+            # consistent with the original ingestion result.
+            # ------------------------------------------------
+
+            base_risk = analyze_event_risk({
+                "severity": event[3],
+                "event_type": event[2]
             })
+
+            risk_score = min(
+                base_risk["risk_score"]
+                + threat_intel_score,
+                100
+            )
+
+            if risk_score >= 80:
+                risk_level = "CRITICAL"
+
+            elif risk_score >= 60:
+                risk_level = "HIGH"
+
+            elif risk_score >= 35:
+                risk_level = "MEDIUM"
+
+            else:
+                risk_level = "LOW"
+
+            event_data.update({
+                "iocs": iocs,
+                "threat_intel": threat_intel,
+                "threat_intel_score": threat_intel_score,
+                "risk_score": risk_score,
+                "risk_level": risk_level
+            })
+
+            result.append(event_data)
 
         return jsonify({
             "count": len(result),
@@ -181,14 +276,38 @@ def get_stats():
                 event_type_count[event_type] = 0
             event_type_count[event_type] += 1
 
-            # Calculate risk
-            risk = analyze_event_risk({
+            # ------------------------------------------------
+            # Calculate risk using persisted threat-intel score
+            # ------------------------------------------------
+
+            threat_intel_score = (
+                event[9]
+                if len(event) > 9 and event[9] is not None
+                else 0
+            )
+
+            base_risk = analyze_event_risk({
                 "severity": severity,
                 "event_type": event_type
             })
 
-            risk_score = risk["risk_score"]
-            risk_level = risk["risk_level"]
+            risk_score = min(
+                base_risk["risk_score"]
+                + int(threat_intel_score),
+                100
+            )
+
+            if risk_score >= 80:
+                risk_level = "CRITICAL"
+
+            elif risk_score >= 60:
+                risk_level = "HIGH"
+
+            elif risk_score >= 35:
+                risk_level = "MEDIUM"
+
+            else:
+                risk_level = "LOW"
 
             total_risk_score += risk_score
             max_risk_score = max(max_risk_score, risk_score)

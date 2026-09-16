@@ -361,7 +361,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 850px;
+            min-width: 1050px;
         }
 
         th,
@@ -917,6 +917,7 @@
                         <th>Event Type</th>
                         <th>Severity</th>
                         <th>Risk</th>
+                        <th>Threat Intel</th>
                         <th>Message</th>
                         <th>Source</th>
                         <th>IP Address</th>
@@ -2365,6 +2366,48 @@
                                     riskScore
                                 )}
                             </span>
+                        </td>
+
+                        <td>
+                            <span class="table-risk-score">
+                                TI: ${escapeHtml(
+                                    event.threat_intel_score ?? 0
+                                )}
+                            </span>
+                            <br>
+                            <small>
+                                ${
+                                    escapeHtml(
+                                        `IOCs: ${
+                                            event.threat_intel?.total ?? 0
+                                        }`
+                                    )
+                                }
+                            </small>
+                            <br>
+                            <small>
+                                ${
+                                    escapeHtml(
+                                        [
+                                            ...(event.iocs?.ips || []).map(
+                                                value => `IP:${value}`
+                                            ),
+                                            ...(event.iocs?.domains || []).map(
+                                                value => `DOMAIN:${value}`
+                                            ),
+                                            ...(event.iocs?.hashes?.md5 || []).map(
+                                                value => `MD5:${value}`
+                                            ),
+                                            ...(event.iocs?.hashes?.sha1 || []).map(
+                                                value => `SHA1:${value}`
+                                            ),
+                                            ...(event.iocs?.hashes?.sha256 || []).map(
+                                                value => `SHA256:${value}`
+                                            )
+                                        ].join(", ") || "No IOCs"
+                                    )
+                                }
+                            </small>
                         </td>
 
                         <td>

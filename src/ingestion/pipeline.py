@@ -30,8 +30,9 @@ class EventPipeline:
 
         1. Enriched with IOC information
         2. Enriched with local threat-intelligence context
-        3. Enriched with risk information
-        4. Published to the real-time event bus
+        3. Enriched with threat-intelligence risk
+        4. Enriched with overall risk information
+        5. Published to the real-time event bus
     """
 
     def __init__(self):
@@ -65,13 +66,13 @@ class EventPipeline:
             event = validate_event(event)
 
             # -------------------------------------------------
-            # 3. Extract IOCs from the canonical event
+            # 3. Extract IOCs from canonical event
             # -------------------------------------------------
 
             iocs = extract_iocs(event)
 
             # -------------------------------------------------
-            # 4. Enrich extracted IOCs with local context
+            # 4. Enrich IOCs with local threat intelligence
             # -------------------------------------------------
 
             threat_intel = enrich_iocs(iocs)
@@ -79,28 +80,33 @@ class EventPipeline:
             # -------------------------------------------------
             # 5. Attach IOC and threat-intelligence data
             #
-            # We do not modify the SecurityEvent dataclass yet.
-            # This keeps existing consumers backward compatible.
+            # SecurityEvent remains backward compatible because
+            # these enrichment attributes are attached here.
             # -------------------------------------------------
 
             event.iocs = iocs
             event.threat_intel = threat_intel
 
             # -------------------------------------------------
-            # 6. Calculate existing risk score
+            # 6. Calculate final risk
             #
-            # Day 40 does NOT change the risk formula.
+            # Threat intelligence now participates in the
+            # existing 0-100 risk calculation.
             # -------------------------------------------------
 
             risk = calculate_risk_score(
                 {
                     "severity": event.severity,
                     "event_type": event.event_type,
+                    "threat_intel": event.threat_intel,
                 }
             )
 
             event.risk_score = risk["risk_score"]
             event.risk_level = risk["risk_level"]
+            event.threat_intel_score = risk[
+                "threat_intel_score"
+            ]
 
         except Exception:
             self.events_rejected += 1

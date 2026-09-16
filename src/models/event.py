@@ -6,7 +6,7 @@ ingestion, validation, detection, risk, correlation and
 alerting components.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -28,6 +28,9 @@ class SecurityEvent:
         ip_address
         risk_score
         risk_level
+        threat_intel_score
+        iocs
+        threat_intel
     """
 
     timestamp: datetime
@@ -39,21 +42,98 @@ class SecurityEvent:
     risk_score: int | float | None = None
     risk_level: str | None = None
 
+    # --------------------------------------------------------
+    # Threat-intelligence enrichment
+    # --------------------------------------------------------
+
+    threat_intel_score: int | float = 0
+
+    iocs: dict = field(
+        default_factory=lambda: {
+            "ips": [],
+            "domains": [],
+            "hashes": {
+                "md5": [],
+                "sha1": [],
+                "sha256": [],
+            },
+        }
+    )
+
+    threat_intel: dict = field(
+        default_factory=lambda: {
+            "total": 0,
+            "items": [],
+        }
+    )
+
     def __post_init__(self):
         """
         Normalize fields that have well-defined canonical forms.
         """
 
-        self.event_type = str(self.event_type).strip().upper()
-        self.severity = str(self.severity).strip().upper()
-        self.message = str(self.message).strip()
-        self.source = str(self.source).strip()
-        self.ip_address = str(self.ip_address).strip()
+        self.event_type = str(
+            self.event_type
+        ).strip().upper()
+
+        self.severity = str(
+            self.severity
+        ).strip().upper()
+
+        self.message = str(
+            self.message
+        ).strip()
+
+        self.source = str(
+            self.source
+        ).strip()
+
+        self.ip_address = str(
+            self.ip_address
+        ).strip()
 
         if self.risk_level is not None:
-            self.risk_level = str(self.risk_level).strip().upper()
+
+            self.risk_level = str(
+                self.risk_level
+            ).strip().upper()
+
+        try:
+            self.threat_intel_score = int(
+                self.threat_intel_score
+            )
+
+        except (TypeError, ValueError):
+
+            self.threat_intel_score = 0
+
+        if not isinstance(
+            self.iocs,
+            dict
+        ):
+
+            self.iocs = {
+                "ips": [],
+                "domains": [],
+                "hashes": {
+                    "md5": [],
+                    "sha1": [],
+                    "sha256": [],
+                },
+            }
+
+        if not isinstance(
+            self.threat_intel,
+            dict
+        ):
+
+            self.threat_intel = {
+                "total": 0,
+                "items": [],
+            }
 
     def __str__(self):
+
         return (
             f"[{self.severity}] "
             f"{self.event_type} | "
@@ -62,6 +142,7 @@ class SecurityEvent:
             f"IP={self.ip_address} | "
             f"Risk={self.risk_score} "
             f"({self.risk_level}) | "
+            f"TI={self.threat_intel_score} | "
             f"{self.message}"
         )
 
@@ -85,4 +166,5 @@ if __name__ == "__main__":
     )
 
     print("=== SecurityEvent Test ===")
+
     event.display()

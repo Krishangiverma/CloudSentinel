@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from pathlib import Path
 from datetime import datetime
@@ -13,15 +14,32 @@ DB_PATH = Path(DATABASE_PATH)
 
 
 # ============================================================
+# Default Threat Intelligence Structures
+# ============================================================
+
+DEFAULT_IOCS = {
+    "ips": [],
+    "domains": [],
+    "hashes": {
+        "md5": [],
+        "sha1": [],
+        "sha256": [],
+    },
+}
+
+DEFAULT_THREAT_INTEL = {
+    "total": 0,
+    "items": [],
+}
+
+
+# ============================================================
 # Helper Functions
 # ============================================================
 
 def _get_value(obj, key, default=None):
     """
-    Safely get a value from either:
-
-    1. Dictionary
-    2. Object with attributes
+    Safely get a value from either a dictionary or object.
     """
 
     if isinstance(obj, dict):
@@ -30,16 +48,103 @@ def _get_value(obj, key, default=None):
     return getattr(obj, key, default)
 
 
+def _json_dumps(value, default):
+    """
+    Safely serialize a value to JSON.
+    """
+
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return json.dumps(default)
+
+
+def _json_loads(value, default):
+    """
+    Safely deserialize JSON.
+    """
+
+    if not value:
+        return default
+
+    try:
+        result = json.loads(value)
+
+        if isinstance(result, type(default)):
+            return result
+
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+
+    return default
+
+
+# ============================================================
+# Database Migration
+# ============================================================
+
+def _migrate_security_events_table(cursor):
+    """
+    Add Day-42 threat-intelligence columns to an existing
+    security_events table.
+
+    Existing data is preserved.
+    Existing column positions remain unchanged.
+    """
+
+    cursor.execute(
+        "PRAGMA table_info(security_events)"
+    )
+
+    columns = {
+        row[1]
+        for row in cursor.fetchall()
+    }
+
+    migrations = [
+        (
+            "iocs_json",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN iocs_json TEXT
+            """
+        ),
+        (
+            "threat_intel_json",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN threat_intel_json TEXT
+            """
+        ),
+        (
+            "threat_intel_score",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN threat_intel_score INTEGER DEFAULT 0
+            """
+        ),
+    ]
+
+    for column_name, sql in migrations:
+
+        if column_name not in columns:
+            cursor.execute(sql)
+
+
 # ============================================================
 # Initialize Database
 # ============================================================
 
 def initialize_database():
     """
-    Create the CloudSentinel database and required tables.
+    Create the CloudSentinel database and perform
+    backward-compatible schema migration.
     """
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
@@ -61,6 +166,12 @@ def initialize_database():
         )
         """
     )
+
+    # --------------------------------------------------------
+    # Day-42 Migration
+    # --------------------------------------------------------
+
+    _migrate_security_events_table(cursor)
 
     # --------------------------------------------------------
     # Security Alerts Table
@@ -94,10 +205,17 @@ def save_event(event):
     """
     Save a security event into the database.
 
-    Supports both dictionary-based and object-based events.
+    Supports dictionary-based and object-based events.
+    Threat-intelligence data is stored as JSON.
     """
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    # Ensure migration exists before inserting.
+    initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
@@ -138,6 +256,31 @@ def save_event(event):
         "N/A"
     )
 
+    iocs = _get_value(
+        event,
+        "iocs",
+        DEFAULT_IOCS
+    )
+
+    threat_intel = _get_value(
+        event,
+        "threat_intel",
+        DEFAULT_THREAT_INTEL
+    )
+
+    threat_intel_score = _get_value(
+        event,
+        "threat_intel_score",
+        0
+    )
+
+    try:
+        threat_intel_score = int(
+            threat_intel_score
+        )
+    except (TypeError, ValueError):
+        threat_intel_score = 0
+
     cursor.execute(
         """
         INSERT INTO security_events
@@ -147,9 +290,12 @@ def save_event(event):
             severity,
             message,
             source,
-            ip_address
+            ip_address,
+            iocs_json,
+            threat_intel_json,
+            threat_intel_score
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(timestamp),
@@ -158,6 +304,12 @@ def save_event(event):
             str(message),
             str(source),
             str(ip_address),
+            _json_dumps(iocs, DEFAULT_IOCS),
+            _json_dumps(
+                threat_intel,
+                DEFAULT_THREAT_INTEL
+            ),
+            threat_intel_score,
         )
     )
 
@@ -173,13 +325,23 @@ def save_event(event):
 
 def get_all_events():
     """
-    Retrieve all security events from the database.
+    Retrieve all security events.
 
-    Returns:
-        List of tuples
+    Original columns remain at positions 0-6.
+
+    Day-42 columns:
+
+        7 = iocs_json
+        8 = threat_intel_json
+        9 = threat_intel_score
     """
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
@@ -193,7 +355,10 @@ def get_all_events():
             severity,
             message,
             source,
-            ip_address
+            ip_address,
+            iocs_json,
+            threat_intel_json,
+            threat_intel_score
         FROM security_events
         ORDER BY id DESC
         """
@@ -212,27 +377,20 @@ def get_all_events():
 
 def save_alert(alert):
     """
-    Save a security alert into the security_alerts table.
+    Save a security alert.
 
-    Supports both:
-
-    1. Dictionary-based alerts
-    2. Object-based alerts
-
-    This prevents errors such as:
-
-        AttributeError:
-        'dict' object has no attribute 'event_type'
+    Supports dictionary-based and object-based alerts.
     """
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
-
-    # --------------------------------------------------------
-    # Extract Alert Information
-    # --------------------------------------------------------
 
     event_type = _get_value(
         alert,
@@ -270,10 +428,6 @@ def save_alert(alert):
         "NEW"
     )
 
-    # --------------------------------------------------------
-    # Insert Alert
-    # --------------------------------------------------------
-
     cursor.execute(
         """
         INSERT INTO security_alerts
@@ -304,52 +458,18 @@ def save_alert(alert):
 
 
 # ============================================================
-# Get All Security Alerts
-# ============================================================
-
-def get_all_alerts():
-    """
-    Retrieve all security alerts from the database.
-
-    Returns:
-        List of tuples
-    """
-
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT
-            id,
-            event_type,
-            severity,
-            message,
-            ip_address,
-            created_at,
-            status
-        FROM security_alerts
-        ORDER BY id DESC
-        """
-    )
-
-    alerts = cursor.fetchall()
-
-    connection.close()
-
-    return alerts
-
-
-# ============================================================
 # Find Recent Duplicate Alert
 # ============================================================
 
 def find_recent_duplicate_alert(event_type, ip_address, since):
     """Return a recent matching alert, if one exists."""
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
@@ -371,25 +491,35 @@ def find_recent_duplicate_alert(event_type, ip_address, since):
         ORDER BY id DESC
         LIMIT 1
         """,
-        (str(event_type), str(ip_address), str(since)),
+        (
+            str(event_type),
+            str(ip_address),
+            str(since),
+        ),
     )
 
     alert = cursor.fetchone()
+
     connection.close()
 
     return alert
 
 
 # ============================================================
-# Get New Alerts
+# Get All Security Alerts
 # ============================================================
 
-def get_new_alerts():
+def get_all_alerts():
     """
-    Retrieve only alerts whose status is NEW.
+    Retrieve all security alerts.
     """
 
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
     cursor = connection.cursor()
@@ -405,7 +535,6 @@ def get_new_alerts():
             created_at,
             status
         FROM security_alerts
-        WHERE status = 'NEW'
         ORDER BY id DESC
         """
     )
@@ -415,296 +544,3 @@ def get_new_alerts():
     connection.close()
 
     return alerts
-
-
-# ============================================================
-# Update Alert Status
-# ============================================================
-
-def update_alert_status(alert_id, status):
-    """
-    Update the status of a security alert.
-
-    Supported statuses:
-
-        NEW
-        ACKNOWLEDGED
-        RESOLVED
-    """
-
-    allowed_statuses = {
-        "NEW",
-        "ACKNOWLEDGED",
-        "RESOLVED"
-    }
-
-    status = str(status).upper()
-
-    if status not in allowed_statuses:
-        raise ValueError(
-            f"Invalid alert status: {status}. "
-            f"Allowed values: {allowed_statuses}"
-        )
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        UPDATE security_alerts
-        SET status = ?
-        WHERE id = ?
-        """,
-        (
-            status,
-            alert_id
-        )
-    )
-
-    if cursor.rowcount == 0:
-        print(f"Warning: Alert {alert_id} not found.")
-    else:
-        print(
-            f"Alert {alert_id} status updated to {status}."
-        )
-
-    connection.commit()
-    connection.close()
-
-
-# ============================================================
-# Count Security Events
-# ============================================================
-
-def count_events():
-    """
-    Return the total number of stored security events.
-    """
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT COUNT(*)
-        FROM security_events
-        """
-    )
-
-    count = cursor.fetchone()[0]
-
-    connection.close()
-
-    return count
-
-
-# ============================================================
-# Count Security Alerts
-# ============================================================
-
-def count_alerts():
-    """
-    Return the total number of stored security alerts.
-    """
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT COUNT(*)
-        FROM security_alerts
-        """
-    )
-
-    count = cursor.fetchone()[0]
-
-    connection.close()
-
-    return count
-
-
-# ============================================================
-# Count Alerts By Severity
-# ============================================================
-
-def count_alerts_by_severity():
-    """
-    Return alert statistics grouped by severity.
-
-    Example:
-
-        {
-            "HIGH": 2,
-            "MEDIUM": 1,
-            "LOW": 0
-        }
-    """
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT severity, COUNT(*)
-        FROM security_alerts
-        GROUP BY severity
-        """
-    )
-
-    rows = cursor.fetchall()
-
-    connection.close()
-
-    statistics = {
-        "HIGH": 0,
-        "MEDIUM": 0,
-        "LOW": 0
-    }
-
-    for severity, count in rows:
-
-        severity = str(severity).upper()
-
-        if severity in statistics:
-            statistics[severity] = count
-
-    return statistics
-
-
-# ============================================================
-# Count Alerts By Status
-# ============================================================
-
-def count_alerts_by_status():
-    """
-    Return alert statistics grouped by status.
-    """
-
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute(
-        """
-        SELECT status, COUNT(*)
-        FROM security_alerts
-        GROUP BY status
-        """
-    )
-
-    rows = cursor.fetchall()
-
-    connection.close()
-
-    statistics = {
-        "NEW": 0,
-        "ACKNOWLEDGED": 0,
-        "RESOLVED": 0
-    }
-
-    for status, count in rows:
-
-        status = str(status).upper()
-
-        if status in statistics:
-            statistics[status] = count
-
-    return statistics
-
-
-# ============================================================
-# Main - Database Verification
-# ============================================================
-
-if __name__ == "__main__":
-
-    initialize_database()
-
-    print()
-    print("=" * 55)
-    print("       CloudSentinel Database Verification")
-    print("=" * 55)
-
-    # --------------------------------------------------------
-    # Security Events
-    # --------------------------------------------------------
-
-    events = get_all_events()
-
-    print()
-    print(f"Total security events: {len(events)}")
-
-    print()
-    print("Recent Security Events:")
-    print("-" * 55)
-
-    for event in events[:5]:
-        print(event)
-
-    # --------------------------------------------------------
-    # Security Alerts
-    # --------------------------------------------------------
-
-    alerts = get_all_alerts()
-
-    print()
-    print(f"Total security alerts: {len(alerts)}")
-
-    print()
-    print("Recent Security Alerts:")
-    print("-" * 55)
-
-    for alert in alerts[:5]:
-        print(alert)
-
-    # --------------------------------------------------------
-    # New Alerts
-    # --------------------------------------------------------
-
-    new_alerts = get_new_alerts()
-
-    print()
-    print(f"New security alerts: {len(new_alerts)}")
-
-    # --------------------------------------------------------
-    # Alert Statistics
-    # --------------------------------------------------------
-
-    severity_stats = count_alerts_by_severity()
-
-    print()
-    print("Alert Severity Statistics:")
-    print("-" * 55)
-
-    print(f"HIGH   : {severity_stats['HIGH']}")
-    print(f"MEDIUM : {severity_stats['MEDIUM']}")
-    print(f"LOW    : {severity_stats['LOW']}")
-
-    # --------------------------------------------------------
-    # Status Statistics
-    # --------------------------------------------------------
-
-    status_stats = count_alerts_by_status()
-
-    print()
-    print("Alert Status Statistics:")
-    print("-" * 55)
-
-    print(f"NEW          : {status_stats['NEW']}")
-    print(
-        f"ACKNOWLEDGED : "
-        f"{status_stats['ACKNOWLEDGED']}"
-    )
-    print(
-        f"RESOLVED     : "
-        f"{status_stats['RESOLVED']}"
-    )
-
-    # --------------------------------------------------------
-    # Verification Complete
-    # --------------------------------------------------------
-
-    print()
-    print("=" * 55)
-    print("Database verification completed.")
-    print("=" * 55)

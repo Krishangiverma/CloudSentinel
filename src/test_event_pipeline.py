@@ -199,3 +199,68 @@ def test_pipeline_enriches_critical_risk():
 
     assert event.risk_score == 100
     assert event.risk_level == "CRITICAL"
+
+
+def test_pipeline_integrates_threat_intel_risk():
+
+    pipeline = EventPipeline()
+
+    event = pipeline.ingest(
+        {
+            "event_type": "SUSPICIOUS_LOGIN",
+            "severity": "MEDIUM",
+            "message": (
+                "Suspicious login from "
+                "8.8.8.8 contacting "
+                "malicious.example.com"
+            ),
+            "source": "auth.log",
+            "ip_address": "8.8.8.8",
+        }
+    )
+
+    assert event.iocs["ips"] == [
+        "8.8.8.8"
+    ]
+
+    assert event.iocs["domains"] == [
+        "malicious.example.com"
+    ]
+
+    assert event.threat_intel["total"] == 2
+
+    assert event.threat_intel_score == 5
+
+    assert event.risk_score == 60
+
+    assert event.risk_level == "HIGH"
+
+
+def test_pipeline_private_ioc_does_not_add_threat_risk():
+
+    pipeline = EventPipeline()
+
+    event = pipeline.ingest(
+        {
+            "event_type": "SUSPICIOUS_LOGIN",
+            "severity": "MEDIUM",
+            "message": (
+                "Suspicious login from "
+                "192.168.1.50"
+            ),
+            "source": "auth.log",
+            "ip_address": "192.168.1.50",
+        }
+    )
+
+    assert event.iocs["ips"] == [
+        "192.168.1.50"
+    ]
+
+    assert event.threat_intel["total"] == 1
+
+    assert event.threat_intel_score == 0
+
+    assert event.risk_score == 55
+
+    assert event.risk_level == "MEDIUM"
