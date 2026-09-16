@@ -123,6 +123,13 @@ def _migrate_security_events_table(cursor):
             ADD COLUMN threat_intel_score INTEGER DEFAULT 0
             """
         ),
+        (
+            "user",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN user TEXT
+            """
+        ),
     ]
 
     for column_name, sql in migrations:
@@ -270,6 +277,12 @@ def save_event(event):
         "N/A"
     )
 
+    user = _get_value(
+        event,
+        "user",
+        None
+    )
+
     iocs = _get_value(
         event,
         "iocs",
@@ -307,9 +320,10 @@ def save_event(event):
             ip_address,
             iocs_json,
             threat_intel_json,
-            threat_intel_score
+            threat_intel_score,
+            user
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(timestamp),
@@ -324,6 +338,7 @@ def save_event(event):
                 DEFAULT_THREAT_INTEL
             ),
             threat_intel_score,
+            str(user) if user is not None else None,
         )
     )
 
@@ -348,6 +363,10 @@ def get_all_events():
         7 = iocs_json
         8 = threat_intel_json
         9 = threat_intel_score
+
+    Day-49 column:
+
+        10 = user
     """
 
     DB_PATH.parent.mkdir(
@@ -372,7 +391,8 @@ def get_all_events():
             ip_address,
             iocs_json,
             threat_intel_json,
-            threat_intel_score
+            threat_intel_score,
+            user
         FROM security_events
         ORDER BY id DESC
         """

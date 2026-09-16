@@ -39,6 +39,7 @@ class SecurityEvent:
     message: str
     source: str = "UNKNOWN"
     ip_address: str = "N/A"
+    user: str | None = None
     risk_score: int | float | None = None
     risk_level: str | None = None
 
@@ -91,6 +92,11 @@ class SecurityEvent:
         self.ip_address = str(
             self.ip_address
         ).strip()
+
+        if self.user is not None:
+            self.user = str(
+                self.user
+            ).strip()
 
         if self.risk_level is not None:
 
