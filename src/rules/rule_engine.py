@@ -1,32 +1,11 @@
-"""
-CloudSentinel Rule Engine.
-
-Provides a reusable abstraction for evaluating security
-detection rules against normalized log/event dictionaries.
-
-Day 36:
-- Rule abstraction
-- RuleEngine abstraction
-- Reusable condition evaluation
-- Backward-compatible event generation
-"""
-
 from dataclasses import dataclass, field
-from typing import Callable, Any
+from typing import Callable, Dict, List, Any
 
 
 @dataclass
 class DetectionRule:
     """
-    Represents one detection rule.
-
-    A rule contains:
-        name        : unique rule name
-        condition   : function that decides whether the rule matches
-        event_type  : CloudSentinel event classification
-        severity    : resulting severity
-        description : human-readable rule description
-        metadata    : extensible rule information
+    Represents a single detection rule.
     """
 
     name: str
@@ -34,22 +13,21 @@ class DetectionRule:
     event_type: str
     severity: str
     description: str = ""
-    metadata: dict = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def matches(self, event: dict) -> bool:
-        """Return True when this rule matches the event."""
-
-        if not isinstance(event, dict):
-            return False
-
+        """
+        Check whether this rule matches the supplied event.
+        """
         try:
             return bool(self.condition(event))
         except Exception:
             return False
 
     def create_detection(self, event: dict) -> dict:
-        """Create a normalized detection from a matching event."""
-
+        """
+        Convert a matching event into a detection result.
+        """
         return {
             "rule_name": self.name,
             "event_type": self.event_type,
@@ -57,91 +35,90 @@ class DetectionRule:
             "message": event.get("message", ""),
             "source": event.get("source", "unknown"),
             "ip": event.get("ip", "N/A"),
-            "metadata": dict(self.metadata),
+            "metadata": self.metadata,
         }
 
 
 class RuleEngine:
     """
-    Generic rule evaluation engine.
-
-    Rules can be registered, removed and evaluated without
-    changing the engine itself.
+    Detection engine responsible for evaluating events
+    against registered detection rules.
     """
 
-    def __init__(self, rules=None):
-        self._rules = []
+    def __init__(self, rules: List[DetectionRule] | None = None):
+        self._rules: List[DetectionRule] = []
 
         if rules:
             for rule in rules:
                 self.register(rule)
 
-    def register(self, rule: DetectionRule):
-        """Register a detection rule."""
-
+    def register(self, rule: DetectionRule) -> None:
+        """
+        Register a detection rule.
+        """
         if not isinstance(rule, DetectionRule):
-            raise TypeError(
-                "rule must be a DetectionRule instance"
-            )
+            raise TypeError("rule must be a DetectionRule instance")
 
         self._rules.append(rule)
 
     def unregister(self, rule_name: str) -> bool:
-        """Remove a rule by name."""
+        """
+        Remove a rule by name.
 
-        original_count = len(self._rules)
+        Returns True if a rule was removed,
+        otherwise False.
+        """
+        for index, rule in enumerate(self._rules):
+            if rule.name == rule_name:
+                del self._rules[index]
+                return True
 
-        self._rules = [
-            rule
-            for rule in self._rules
-            if rule.name != rule_name
-        ]
+        return False
 
-        return len(self._rules) < original_count
-
-    def clear(self):
-        """Remove all registered rules."""
-
+    def clear(self) -> None:
+        """
+        Remove all registered rules.
+        """
         self._rules.clear()
 
-    def list_rules(self):
-        """Return registered rules."""
-
+    def list_rules(self) -> List[DetectionRule]:
+        """
+        Return all registered rules.
+        """
         return list(self._rules)
 
-    def evaluate(self, event: dict):
+    def evaluate(self, event: dict) -> List[dict]:
         """
-        Evaluate one event against all registered rules.
-
-        Returns:
-            List of detections.
+        Evaluate one event against every registered rule.
         """
-
         detections = []
 
         for rule in self._rules:
-
             if rule.matches(event):
-
                 detections.append(
                     rule.create_detection(event)
                 )
 
         return detections
 
-    def evaluate_many(self, events):
+    def evaluate_many(self, events: List[dict]) -> List[dict]:
         """
         Evaluate multiple events.
-
-        Returns:
-            Flattened list of detections.
         """
-
         detections = []
 
         for event in events:
-            detections.extend(
-                self.evaluate(event)
-            )
+            detections.extend(self.evaluate(event))
 
         return detections
+
+
+def create_engine_from_yaml(path: str) -> RuleEngine:
+    """
+    Create a RuleEngine populated with rules loaded from YAML.
+    """
+    from src.rules.rule_loader import load_rules_from_yaml
+
+    rules = load_rules_from_yaml(path)
+
+    return RuleEngine(rules)

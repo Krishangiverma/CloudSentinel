@@ -1,0 +1,57 @@
+rules:
+  - name: ssh_failed_password
+    condition: "failed password"
+    threshold: 1
+    window: 60
+    severity: MEDIUM
+    MITRE: T1110
+
+  - name: ssh_invalid_user
+    condition: "invalid user"
+    threshold: 1
+    window: 60
+    severity: MEDIUM
+    MITRE: T1078
+
+  - name: authentication_failure
+    condition: "authentication failure"
+    threshold: 1
+    window: 60
+    severity: MEDIUM
+    MITRE: T1110
+
+  - name: brute_force
+    condition: "brute force"
+    threshold: 3
+    window: 60
+    severity: HIGH
+    MITRE: T1110
+
+  - name: sudo_activity
+    condition: "sudo:"
+    threshold: 1
+    window: 60
+    severity: MEDIUM
+    MITRE: T1548.003
+
+  - name: session_opened
+    condition: "session opened"
+    threshold: 1
+    window: 60
+    severity: LOW
+    MITRE: T1078
+
+  - name: session_closed
+    condition: "session closed"
+    threshold: 1
+    window: 60
+    severity: LOW
+    MITRE: T1078
+
+  - name: cron_activity
+    condition: "cron"
+    threshold: 1
+    window: 60
+    severity: LOW
+    MITRE: T1053
+

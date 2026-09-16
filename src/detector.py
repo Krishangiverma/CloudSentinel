@@ -1,8 +1,11 @@
 """
 CloudSentinel Detection Engine.
 
-Day 36:
-    Rule-engine based detection abstraction.
+Day 37:
+    YAML-based detection rule configuration.
+
+Detection rules are loaded from:
+    config/rules/detection_rules.yaml
 
 The legacy public functions are preserved:
     extract_ip()
@@ -10,23 +13,38 @@ The legacy public functions are preserved:
     analyze_logs()
     detect_suspicious_event()
 
-Detection rules are now evaluated through the reusable
-RuleEngine instead of keeping individual message-matching
-rules hardcoded inside the main detection function.
+Multi-event brute-force aggregation remains separate because
+it requires counting repeated authentication failures.
 """
 
 import re
 from collections import defaultdict
+from pathlib import Path
 
-from src.rules.rule_engine import RuleEngine
-from src.rules.default_rules import DEFAULT_RULES
+from src.rules.rule_engine import create_engine_from_yaml
+
+
+# ============================================================
+# CONFIGURATION
+# ============================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+RULE_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "config"
+    / "rules"
+    / "detection_rules.yaml"
+)
 
 
 # ============================================================
 # RULE ENGINE
 # ============================================================
 
-DETECTION_ENGINE = RuleEngine(DEFAULT_RULES)
+DETECTION_ENGINE = create_engine_from_yaml(
+    str(RULE_CONFIG_PATH)
+)
 
 
 # ============================================================
@@ -178,7 +196,9 @@ def detect_suspicious_events(logs):
     Returns:
         List of normalized security event dictionaries.
 
-    Individual detections are evaluated through RuleEngine.
+    Individual detections are evaluated through rules loaded
+    from YAML.
+
     Multi-event brute-force correlation remains a separate
     aggregation step.
     """
@@ -189,7 +209,7 @@ def detect_suspicious_events(logs):
         return events
 
     # ---------------------------------------------------------
-    # STEP 1: Evaluate individual entries through RuleEngine
+    # STEP 1: Evaluate individual entries through YAML rules
     # ---------------------------------------------------------
 
     for entry in logs:
@@ -219,9 +239,13 @@ def detect_suspicious_events(logs):
     # STEP 2: Multi-event brute-force detection
     # ---------------------------------------------------------
 
-    brute_force_events = _detect_brute_force(logs)
+    brute_force_events = _detect_brute_force(
+        logs
+    )
 
-    events.extend(brute_force_events)
+    events.extend(
+        brute_force_events
+    )
 
     # ---------------------------------------------------------
     # STEP 3: Remove duplicates
@@ -256,7 +280,9 @@ def analyze_logs(logs):
     Backward-compatible wrapper.
     """
 
-    return detect_suspicious_events(logs)
+    return detect_suspicious_events(
+        logs
+    )
 
 
 def detect_suspicious_event(event):
