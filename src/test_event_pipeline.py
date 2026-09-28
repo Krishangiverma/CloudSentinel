@@ -264,3 +264,63 @@ def test_pipeline_private_ioc_does_not_add_threat_risk():
     assert event.risk_score == 55
 
     assert event.risk_level == "MEDIUM"
+
+
+def test_pipeline_rejects_event_when_publish_raises(monkeypatch):
+    import src.ingestion.pipeline as pipeline_module
+
+    pipeline = EventPipeline()
+
+    def fail_publish(event):
+        raise RuntimeError("simulated event bus failure")
+
+    monkeypatch.setattr(pipeline_module, "publish", fail_publish)
+
+    raw_event = {
+        "event_type": "TEST_EVENT",
+        "severity": "LOW",
+        "message": "Publish failure test",
+        "source": "test",
+        "ip_address": "127.0.0.1",
+    }
+
+    try:
+        pipeline.ingest(raw_event)
+        assert False, "Expected publish failure"
+    except RuntimeError as error:
+        assert str(error) == "simulated event bus failure"
+
+    assert pipeline.events_processed == 0
+    assert pipeline.events_rejected == 1
+
+
+def test_pipeline_publish_failure_does_not_hide_enriched_event(monkeypatch):
+    import src.ingestion.pipeline as pipeline_module
+
+    pipeline = EventPipeline()
+    captured = {}
+
+    def capture_then_fail(event):
+        captured["event"] = event
+        raise RuntimeError("publish failed")
+
+    monkeypatch.setattr(pipeline_module, "publish", capture_then_fail)
+
+    raw_event = {
+        "event_type": "TEST_EVENT",
+        "severity": "LOW",
+        "message": "Enriched before publish",
+        "source": "test",
+        "ip_address": "127.0.0.1",
+    }
+
+    try:
+        pipeline.ingest(raw_event)
+        assert False, "Expected publish failure"
+    except RuntimeError:
+        pass
+
+    assert "event" in captured
+    assert captured["event"].risk_score is not None
+    assert pipeline.events_processed == 0
+    assert pipeline.events_rejected == 1
