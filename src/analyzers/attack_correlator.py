@@ -12,6 +12,7 @@ response, and incident-status behavior is preserved.
 
 from datetime import datetime, timezone
 from .confidence_scorer import calculate_confidence
+from .incident_deduplicator import deduplicate_incidents
 
 DEFAULT_THRESHOLD = 3
 DEFAULT_TIME_WINDOW_SECONDS = 300
@@ -1115,4 +1116,7 @@ def correlate_events(
             )
         )
 
-    return incidents
+    return deduplicate_incidents(
+        incidents,
+        window_seconds=time_window_seconds,
+    )
