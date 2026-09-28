@@ -61,3 +61,52 @@ def test_worker_processes_multiple_valid_events(monkeypatch):
 
     assert processed == ["event-1", "event-2", "event-3"]
     assert worker.event_queue.unfinished_tasks == 0
+
+
+def test_worker_stop_drains_queued_events(monkeypatch):
+    processed = []
+
+    def fake_ingest(event):
+        processed.append(event)
+        return event
+
+    monkeypatch.setattr(event_worker, "ingest_event", fake_ingest)
+
+    worker = event_worker.EventWorker()
+    worker.start()
+
+    worker.submit("event-1")
+    worker.submit("event-2")
+    worker.submit("event-3")
+    worker.stop()
+
+    assert processed == ["event-1", "event-2", "event-3"]
+    assert worker.event_queue.unfinished_tasks == 0
+    assert worker._thread is not None
+    assert not worker._thread.is_alive()
+
+
+def test_worker_can_restart_after_stop(monkeypatch):
+    processed = []
+
+    def fake_ingest(event):
+        processed.append(event)
+        return event
+
+    monkeypatch.setattr(event_worker, "ingest_event", fake_ingest)
+
+    worker = event_worker.EventWorker()
+
+    worker.start()
+    worker.submit("before-restart")
+    worker.event_queue.join()
+    worker.stop()
+
+    worker.start()
+    worker.submit("after-restart")
+    worker.event_queue.join()
+    worker.stop()
+
+    assert processed == ["before-restart", "after-restart"]
+    assert worker.event_queue.unfinished_tasks == 0
+    assert not worker._thread.is_alive()
