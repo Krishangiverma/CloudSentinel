@@ -1,13 +1,27 @@
+
 """
 CloudSentinel Canonical Security Event Model.
 
-This is the canonical event representation used between
-ingestion, validation, detection, risk, correlation and
-alerting components.
+Canonical event representation shared by ingestion, validation,
+detection, risk scoring, correlation, and alerting.
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
+
+
+def _default_iocs():
+    return {
+        "ips": [],
+        "domains": [],
+        "urls": [],
+        "hashes": {
+            "md5": [],
+            "sha1": [],
+            "sha256": [],
+        },
+    }
 
 
 @dataclass
@@ -16,21 +30,11 @@ class SecurityEvent:
     Canonical CloudSentinel security event.
 
     Required fields:
+        timestamp, event_type, severity, message
 
-        timestamp
-        event_type
-        severity
-        message
-        source
-
-    Optional:
-
-        ip_address
-        risk_score
-        risk_level
-        threat_intel_score
-        iocs
-        threat_intel
+    Optional fields:
+        source, ip_address, user, risk information,
+        threat-intelligence data, and raw evidence.
     """
 
     timestamp: datetime
@@ -42,128 +46,52 @@ class SecurityEvent:
     user: str | None = None
     risk_score: int | float | None = None
     risk_level: str | None = None
-
-    # --------------------------------------------------------
-    # Threat-intelligence enrichment
-    # --------------------------------------------------------
-
     threat_intel_score: int | float = 0
-
-    iocs: dict = field(
-        default_factory=lambda: {
-            "ips": [],
-            "domains": [],
-            "urls": [],
-            "hashes": {
-                "md5": [],
-                "sha1": [],
-                "sha256": [],
-            },
-        }
-    )
-
+    iocs: dict = field(default_factory=_default_iocs)
     threat_intel: dict = field(
-        default_factory=lambda: {
-            "total": 0,
-            "items": [],
-        }
+        default_factory=lambda: {"total": 0, "items": []}
     )
+    # Appended at the end to preserve existing positional arguments.
+    raw_evidence: Any = None
 
     def __post_init__(self):
-        """
-        Normalize fields that have well-defined canonical forms.
-        """
-
-        self.event_type = str(
-            self.event_type
-        ).strip().upper()
-
-        self.severity = str(
-            self.severity
-        ).strip().upper()
-
-        self.message = str(
-            self.message
-        ).strip()
-
-        self.source = str(
-            self.source
-        ).strip()
-
-        self.ip_address = str(
-            self.ip_address
-        ).strip()
+        self.event_type = str(self.event_type).strip().upper()
+        self.severity = str(self.severity).strip().upper()
+        self.message = str(self.message).strip()
+        self.source = str(self.source).strip()
+        self.ip_address = str(self.ip_address).strip()
 
         if self.user is not None:
-            self.user = str(
-                self.user
-            ).strip()
+            self.user = str(self.user).strip()
 
         if self.risk_level is not None:
-
-            self.risk_level = str(
-                self.risk_level
-            ).strip().upper()
+            self.risk_level = str(self.risk_level).strip().upper()
 
         try:
-            self.threat_intel_score = int(
-                self.threat_intel_score
-            )
-
-        except (TypeError, ValueError):
-
+            self.threat_intel_score = int(self.threat_intel_score)
+        except (TypeError, ValueError, OverflowError):
             self.threat_intel_score = 0
 
-        if not isinstance(
-            self.iocs,
-            dict
-        ):
+        if not isinstance(self.iocs, dict):
+            self.iocs = _default_iocs()
 
-            self.iocs = {
-                "ips": [],
-                "domains": [],
-                "urls": [],
-                "hashes": {
-                    "md5": [],
-                    "sha1": [],
-                    "sha256": [],
-                },
-            }
-
-        if not isinstance(
-            self.threat_intel,
-            dict
-        ):
-
-            self.threat_intel = {
-                "total": 0,
-                "items": [],
-            }
+        if not isinstance(self.threat_intel, dict):
+            self.threat_intel = {"total": 0, "items": []}
 
     def __str__(self):
-
         return (
-            f"[{self.severity}] "
-            f"{self.event_type} | "
-            f"{self.timestamp} | "
-            f"{self.source} | "
+            f"[{self.severity}] {self.event_type} | "
+            f"{self.timestamp} | {self.source} | "
             f"IP={self.ip_address} | "
-            f"Risk={self.risk_score} "
-            f"({self.risk_level}) | "
-            f"TI={self.threat_intel_score} | "
-            f"{self.message}"
+            f"Risk={self.risk_score} ({self.risk_level}) | "
+            f"TI={self.threat_intel_score} | {self.message}"
         )
 
     def display(self):
-        """
-        Display the security event in a readable format.
-        """
-
         print(self)
 
 
 if __name__ == "__main__":
-
     event = SecurityEvent(
         timestamp=datetime.now(),
         event_type="TEST_EVENT",
@@ -171,8 +99,8 @@ if __name__ == "__main__":
         message="CloudSentinel canonical event model is working.",
         source="CloudSentinel",
         ip_address="127.0.0.1",
+        raw_evidence="Example original log entry",
     )
-
     print("=== SecurityEvent Test ===")
-
     event.display()
+    print("Raw evidence:", event.raw_evidence)
