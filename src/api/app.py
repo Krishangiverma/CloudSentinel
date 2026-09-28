@@ -52,6 +52,7 @@ from src.hunting.hunt_storage import HuntStorage
 from src.api.ioc_investigation import ioc_investigation_bp
 from src.attack_graph.attack_graph import build_attack_graph
 from src.timeline.incident_timeline import build_incident_timeline
+from src.ai.investigation_context import build_investigation_context
 
 
 # ============================================================
@@ -1680,6 +1681,51 @@ def get_incident_investigation(incident_id):
             "status": "error",
             "message": "Failed to retrieve incident investigation.",
             "error": str(e)
+        }), 500
+
+
+# ============================================================
+# STRUCTURED INCIDENT INVESTIGATION CONTEXT (DAY 71)
+# ============================================================
+
+@app.route(
+    "/api/incidents/<incident_id>/context",
+    methods=["GET"]
+)
+def get_incident_context(incident_id):
+    """Return the structured, JSON-safe context for one incident."""
+
+    try:
+        incidents = _build_correlated_incidents()
+        normalized_id = str(incident_id).strip().upper()
+
+        for incident in incidents:
+            current_id = str(
+                incident.get("incident_id", "")
+            ).strip().upper()
+
+            if current_id != normalized_id:
+                continue
+
+            context = build_investigation_context(incident)
+
+            return jsonify({
+                "status": "success",
+                "incident_id": incident.get("incident_id"),
+                "context": context,
+            })
+
+        return jsonify({
+            "status": "error",
+            "message": "Security incident not found.",
+            "incident_id": incident_id,
+        }), 404
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Failed to build incident context.",
+            "error": str(e),
         }), 500
 
 
