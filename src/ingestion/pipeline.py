@@ -29,9 +29,12 @@ class EventPipeline:
     increments events_rejected.
     """
 
-    def __init__(self):
+    def __init__(self, ml_model=None):
         self.events_processed = 0
         self.events_rejected = 0
+        self.ml_model = ml_model
+        self.ml_prediction_errors = 0
+        self.ml_last_error = None
 
     def ingest(self, raw_event):
         """
@@ -76,7 +79,24 @@ class EventPipeline:
             event.risk_level = risk["risk_level"]
             event.threat_intel_score = risk["threat_intel_score"]
 
-            # 7. Publish the enriched event.
+            # 7. Optional ML anomaly enrichment.
+            # ML failures must not change existing risk scoring or reject events.
+            if self.ml_model is not None:
+                try:
+                    result = self.ml_model.predict_one(event)
+                    event.ml_anomaly_score = float(result.anomaly_score)
+                    event.ml_is_anomaly = bool(result.is_anomaly)
+                    event.ml_feature_deviations = dict(
+                        result.feature_deviations
+                    )
+                    self.ml_last_error = None
+                except Exception as error:
+                    self.ml_prediction_errors += 1
+                    self.ml_last_error = (
+                        f"{type(error).__name__}: {error}"
+                    )
+
+            # 8. Publish the enriched event.
             # A publishing exception is handled by this try/except.
             publish(event)
 

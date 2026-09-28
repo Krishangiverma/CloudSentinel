@@ -54,6 +54,11 @@ class SecurityEvent:
     # Appended at the end to preserve existing positional arguments.
     raw_evidence: Any = None
 
+    # Optional ML anomaly enrichment; separate from risk scoring.
+    ml_anomaly_score: float | None = None
+    ml_is_anomaly: bool | None = None
+    ml_feature_deviations: dict[str, float] = field(default_factory=dict)
+
     def __post_init__(self):
         self.event_type = str(self.event_type).strip().upper()
         self.severity = str(self.severity).strip().upper()
