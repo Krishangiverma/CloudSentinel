@@ -2,7 +2,9 @@ import sys
 import json
 from pathlib import Path
 
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, Response, jsonify, request, render_template
+
+from src.reports.incident_report import generate_incident_report
 
 
 # ============================================================
@@ -1680,6 +1682,49 @@ def get_incident_investigation(incident_id):
         return jsonify({
             "status": "error",
             "message": "Failed to retrieve incident investigation."
+        }), 500
+
+
+@app.route(
+    "/api/incidents/<incident_id>/report",
+    methods=["GET"]
+)
+def download_incident_report(incident_id):
+    """Download a plain-text report for one correlated incident."""
+    try:
+        incidents = _build_correlated_incidents()
+        normalized_id = str(incident_id).strip().upper()
+
+        for incident in incidents:
+            current_id = str(incident.get("incident_id", ""))
+            if current_id.upper() != normalized_id:
+                continue
+
+            report_text = generate_incident_report(incident)
+            safe_id = "".join(
+                char for char in current_id
+                if char.isalnum() or char in ("-", "_")
+            )[:80] or "incident"
+
+            return Response(
+                report_text,
+                status=200,
+                mimetype="text/plain",
+                headers={
+                    "Content-Disposition":
+                        f'attachment; filename="cloudsentinel_{safe_id}_report.txt"'
+                },
+            )
+
+        return jsonify({
+            "status": "error",
+            "message": "Security incident not found.",
+        }), 404
+
+    except Exception:
+        return jsonify({
+            "status": "error",
+            "message": "Failed to generate incident report.",
         }), 500
 
 
