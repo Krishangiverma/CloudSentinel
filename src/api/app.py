@@ -1731,11 +1731,10 @@ def get_incident_context(incident_id):
             "incident_id": incident_id,
         }), 404
 
-    except Exception as e:
+    except Exception:
         return jsonify({
             "status": "error",
             "message": "Failed to build incident context.",
-            "error": str(e),
         }), 500
 
 
