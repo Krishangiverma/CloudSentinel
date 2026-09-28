@@ -299,6 +299,39 @@
             font-size: 12px;
         }
 
+        .ml-anomaly-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            margin-top: 10px;
+            color: #cbd5e1;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .ml-anomaly-details small {
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .ml-status {
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        .ml-anomaly {
+            color: #fca5a5;
+        }
+
+        .ml-normal {
+            color: #86efac;
+        }
+
+        .ml-unknown {
+            color: #cbd5e1;
+        }
+
         .alert-message {
             margin-top: 9px;
             color: #cbd5e1;
@@ -1090,6 +1123,7 @@
                         <th>Severity</th>
                         <th>Risk</th>
                         <th>Threat Intel</th>
+                        <th>ML Anomaly</th>
                         <th>Message</th>
                         <th>Source</th>
                         <th>IP Address</th>
@@ -1385,6 +1419,82 @@
     }
 
 
+    // ML score is a standardized deviation heuristic, not a probability.
+    function mlScoreText(event) {
+        const score = event?.ml_anomaly_score;
+
+        if (
+            score === null ||
+            score === undefined ||
+            score === "" ||
+            !Number.isFinite(Number(score))
+        ) {
+            return "Not evaluated";
+        }
+
+        return `${Number(score).toFixed(3)} deviation`;
+    }
+
+    function renderMLDetails(event) {
+        const flag = event?.ml_is_anomaly;
+        const score = event?.ml_anomaly_score;
+        const deviations = event?.ml_feature_deviations;
+
+        let status = "Not evaluated";
+
+        if (flag === true) {
+            status = "Anomaly detected";
+        } else if (flag === false) {
+            status = "No anomaly";
+        } else if (
+            score !== null &&
+            score !== undefined &&
+            score !== "" &&
+            Number.isFinite(Number(score))
+        ) {
+            status = "Status unavailable";
+        }
+
+        let deviationText = "No feature deviations available";
+
+        if (
+            deviations &&
+            typeof deviations === "object" &&
+            !Array.isArray(deviations)
+        ) {
+            const entries = Object.entries(deviations)
+                .filter(([, value]) =>
+                    value !== null &&
+                    value !== undefined &&
+                    Number.isFinite(Number(value))
+                )
+                .sort((a, b) => Number(b[1]) - Number(a[1]))
+                .slice(0, 3);
+
+            if (entries.length) {
+                deviationText = entries.map(([name, value]) =>
+                    `${escapeHtml(name)}: ${Number(value).toFixed(2)}`
+                ).join(", ");
+            }
+        }
+
+        const statusClass =
+            flag === true ? "ml-anomaly" :
+            flag === false ? "ml-normal" :
+            "ml-unknown";
+
+        return `
+            <div class="ml-anomaly-details">
+                <span class="ml-status ${statusClass}">
+                    ML: ${escapeHtml(status)}
+                </span>
+                <span>Score: ${escapeHtml(mlScoreText(event))}</span>
+                <small>Top deviations: ${deviationText}</small>
+            </div>
+        `;
+    }
+
+
     function normalizeSeverity(severity) {
 
         const value =
@@ -1613,6 +1723,8 @@
                     </span>
 
                 </div>
+
+                ${renderMLDetails(event)}
 
             </div>
 
@@ -3085,6 +3197,10 @@ function renderInvestigation(
                                     )
                                 }
                             </small>
+                        </td>
+
+                        <td>
+                            ${renderMLDetails(event)}
                         </td>
 
                         <td>
