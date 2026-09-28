@@ -18,7 +18,10 @@ os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 # Cooldown period for repeated alerts
 COOLDOWN_SECONDS = 60
 
-# Store the last notification time for each alert
+# Maximum attempts for notification-log writes.
+MAX_LOG_WRITE_ATTEMPTS = 3
+
+# Store the last successfully delivered notification time for each alert.
 _last_notification_times = {}
 
 
@@ -70,9 +73,6 @@ def send_notification(alert):
 
             return False
 
-    # Update last notification time
-    _last_notification_times[alert_key] = current_time
-
     alert_type = alert.get(
         "event_type",
         alert.get("alert_type", "UNKNOWN")
@@ -107,21 +107,32 @@ def send_notification(alert):
     print(f"Message     : {message}")
     print("=" * 60)
 
-    # Log notification
-    try:
-        with open(LOG_FILE, "a") as log_file:
-            log_file.write(
-                f"[{timestamp}] "
-                f"Alert Type: {alert_type} | "
-                f"Severity: {severity} | "
-                f"IP: {ip_address} | "
-                f"Message: {message}\n"
-            )
-    except OSError as error:
-        print(f"[ERROR] Failed to write notification log: {error}")
-        return False
+    # Log notification with bounded retries.
+    log_entry = (
+        f"[{timestamp}] "
+        f"Alert Type: {alert_type} | "
+        f"Severity: {severity} | "
+        f"IP: {ip_address} | "
+        f"Message: {message}\\n"
+    )
 
-    return True
+    for attempt in range(1, MAX_LOG_WRITE_ATTEMPTS + 1):
+        try:
+            with open(LOG_FILE, "a") as log_file:
+                log_file.write(log_entry)
+        except OSError as error:
+            print(
+                f"[ERROR] Notification log write attempt "
+                f"{attempt}/{MAX_LOG_WRITE_ATTEMPTS} failed: {error}"
+            )
+            if attempt == MAX_LOG_WRITE_ATTEMPTS:
+                return False
+        else:
+            # Apply cooldown only after a successful log write.
+            _last_notification_times[alert_key] = datetime.now()
+            return True
+
+    return False
 
 
 def notify_alert(alert):
