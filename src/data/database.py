@@ -86,11 +86,9 @@ def _json_loads(value, default):
 
 def _migrate_security_events_table(cursor):
     """
-    Add Day-42 threat-intelligence columns to an existing
-    security_events table.
-
-    Existing data is preserved.
-    Existing column positions remain unchanged.
+    Add threat-intelligence and Day-113 ML columns to an existing
+    security_events table. Existing data and column positions
+    are preserved; new columns are appended.
     """
 
     cursor.execute(
@@ -129,6 +127,27 @@ def _migrate_security_events_table(cursor):
             """
             ALTER TABLE security_events
             ADD COLUMN user TEXT
+            """
+        ),
+        (
+            "ml_anomaly_score",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN ml_anomaly_score REAL
+            """
+        ),
+        (
+            "ml_is_anomaly",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN ml_is_anomaly INTEGER
+            """
+        ),
+        (
+            "ml_feature_deviations_json",
+            """
+            ALTER TABLE security_events
+            ADD COLUMN ml_feature_deviations_json TEXT
             """
         ),
     ]
@@ -401,28 +420,49 @@ def save_event(event):
     )
 
     try:
-        threat_intel_score = int(
-            threat_intel_score
-        )
+        threat_intel_score = int(threat_intel_score)
     except (TypeError, ValueError):
         threat_intel_score = 0
+
+    ml_anomaly_score = _get_value(event, "ml_anomaly_score", None)
+    try:
+        ml_anomaly_score = (
+            float(ml_anomaly_score)
+            if ml_anomaly_score is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        ml_anomaly_score = None
+
+    ml_is_anomaly = _get_value(event, "ml_is_anomaly", None)
+    if ml_is_anomaly is not None:
+        if isinstance(ml_is_anomaly, str):
+            flag = ml_is_anomaly.strip().lower()
+            if flag in {"true", "1", "yes"}:
+                ml_is_anomaly = 1
+            elif flag in {"false", "0", "no"}:
+                ml_is_anomaly = 0
+            else:
+                ml_is_anomaly = None
+        else:
+            ml_is_anomaly = int(bool(ml_is_anomaly))
+
+    ml_feature_deviations = _get_value(
+        event, "ml_feature_deviations", {}
+    )
+    if not isinstance(ml_feature_deviations, dict):
+        ml_feature_deviations = {}
 
     cursor.execute(
         """
         INSERT INTO security_events
         (
-            timestamp,
-            event_type,
-            severity,
-            message,
-            source,
-            ip_address,
-            iocs_json,
-            threat_intel_json,
-            threat_intel_score,
-            user
+            timestamp, event_type, severity, message, source,
+            ip_address, iocs_json, threat_intel_json,
+            threat_intel_score, user, ml_anomaly_score,
+            ml_is_anomaly, ml_feature_deviations_json
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(timestamp),
@@ -432,12 +472,12 @@ def save_event(event):
             str(source),
             str(ip_address),
             _json_dumps(iocs, DEFAULT_IOCS),
-            _json_dumps(
-                threat_intel,
-                DEFAULT_THREAT_INTEL
-            ),
+            _json_dumps(threat_intel, DEFAULT_THREAT_INTEL),
             threat_intel_score,
             str(user) if user is not None else None,
+            ml_anomaly_score,
+            ml_is_anomaly,
+            _json_dumps(ml_feature_deviations, {}),
         )
     )
 
@@ -466,6 +506,12 @@ def get_all_events():
     Day-49 column:
 
         10 = user
+
+    Day-113 ML columns:
+
+        11 = ml_anomaly_score
+        12 = ml_is_anomaly
+        13 = ml_feature_deviations_json
     """
 
     DB_PATH.parent.mkdir(
@@ -491,7 +537,10 @@ def get_all_events():
             iocs_json,
             threat_intel_json,
             threat_intel_score,
-            user
+            user,
+            ml_anomaly_score,
+            ml_is_anomaly,
+            ml_feature_deviations_json
         FROM security_events
         ORDER BY id DESC
         """

@@ -50,6 +50,9 @@ def test_initialize_database_is_idempotent(isolated_db):
         "threat_intel_json",
         "threat_intel_score",
         "user",
+        "ml_anomaly_score",
+        "ml_is_anomaly",
+        "ml_feature_deviations_json",
     }.issubset(columns)
 
 
@@ -78,6 +81,9 @@ def test_save_and_retrieve_event(isolated_db):
     assert event[6] == "192.0.2.10"
     assert event[9] == 10
     assert event[10] == "test-user"
+    assert event[11] is None
+    assert event[12] is None
+    assert event[13] == "{}"
 
 
 def test_existing_security_events_table_gets_missing_columns(isolated_db):
@@ -121,3 +127,25 @@ def test_existing_security_events_table_gets_missing_columns(isolated_db):
 
     assert {"iocs_json", "threat_intel_json", "threat_intel_score", "user"} <= columns
     assert row == ("Existing record",)
+
+
+def test_save_and_retrieve_ml_anomaly_fields(isolated_db):
+    database.save_event({
+        "timestamp": "2026-10-24T10:00:00",
+        "event_type": "ML_TEST",
+        "severity": "MEDIUM",
+        "message": "ML persistence test",
+        "source": "day113-test",
+        "ip_address": "192.0.2.50",
+        "ml_anomaly_score": 0.875,
+        "ml_is_anomaly": True,
+        "ml_feature_deviations": {"failed_logins": 2.25},
+    })
+
+    event = database.get_all_events()[0]
+
+    assert event[11] == pytest.approx(0.875)
+    assert event[12] == 1
+    assert database._json_loads(event[13], {}) == {
+        "failed_logins": 2.25
+    }

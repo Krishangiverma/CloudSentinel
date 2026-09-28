@@ -169,7 +169,24 @@ def get_events():
                 "severity": event[3],
                 "message": event[4],
                 "source": event[5],
-                "ip_address": event[6]
+                "ip_address": event[6],
+                # Current database tuples have 14 fields:
+                # ML score/flag/deviations are at indexes 11/12/13.
+                # Legacy test/API tuples may have 10 fields, with
+                # appended ML fields at indexes 10/11/12.
+                "ml_anomaly_score": (
+                    event[11] if len(event) >= 14
+                    else event[10] if len(event) >= 13
+                    else None
+                ),
+                "ml_is_anomaly": (
+                    bool(event[12])
+                    if len(event) >= 14 and event[12] is not None
+                    else bool(event[11])
+                    if len(event) == 13 and event[11] is not None
+                    else None
+                ),
+                "ml_feature_deviations": {}
             }
 
             # ------------------------------------------------
@@ -228,6 +245,28 @@ def get_events():
                 ValueError
             ):
                 threat_intel_score = 0
+
+            # ------------------------------------------------
+            # Load persisted ML anomaly enrichment.
+            # Old database/API tuples remain supported.
+            # ------------------------------------------------
+
+            deviations_index = (
+                13 if len(event) >= 14
+                else 12 if len(event) == 13
+                else None
+            )
+            if deviations_index is not None and event[deviations_index]:
+                try:
+                    parsed_deviations = json.loads(
+                        event[deviations_index]
+                    )
+                    if isinstance(parsed_deviations, dict):
+                        event_data["ml_feature_deviations"] = (
+                            parsed_deviations
+                        )
+                except (TypeError, ValueError):
+                    event_data["ml_feature_deviations"] = {}
 
             # ------------------------------------------------
             # Risk calculation

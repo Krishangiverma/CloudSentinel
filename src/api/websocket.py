@@ -115,6 +115,11 @@ def build_event_payload(event):
             "risk_level": event.get(
                 "risk_level"
             ),
+            "ml_anomaly_score": event.get("ml_anomaly_score"),
+            "ml_is_anomaly": event.get("ml_is_anomaly"),
+            "ml_feature_deviations": (
+                event.get("ml_feature_deviations") or {}
+            ),
         }
 
     else:
@@ -166,6 +171,15 @@ def build_event_payload(event):
                 event,
                 "risk_level",
                 None
+            ),
+            "ml_anomaly_score": getattr(
+                event, "ml_anomaly_score", None
+            ),
+            "ml_is_anomaly": getattr(
+                event, "ml_is_anomaly", None
+            ),
+            "ml_feature_deviations": (
+                getattr(event, "ml_feature_deviations", None) or {}
             ),
         }
 

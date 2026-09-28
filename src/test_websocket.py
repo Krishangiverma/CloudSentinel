@@ -199,3 +199,37 @@ def test_new_client_receives_connection_status_after_previous_disconnect():
         assert statuses[0]["args"][0]["status"] == "connected"
     finally:
         second_client.disconnect()
+
+
+def test_build_event_payload_includes_ml_anomaly_fields():
+    result = ws.build_event_payload({
+        "event_type": "BRUTE_FORCE",
+        "ml_anomaly_score": 0.87,
+        "ml_is_anomaly": True,
+        "ml_feature_deviations": {"failed_logins": 2.0},
+    })
+
+    assert result["ml_anomaly_score"] == 0.87
+    assert result["ml_is_anomaly"] is True
+    assert result["ml_feature_deviations"] == {"failed_logins": 2.0}
+
+
+def test_build_event_payload_defaults_missing_ml_fields():
+    result = ws.build_event_payload({})
+
+    assert result["ml_anomaly_score"] is None
+    assert result["ml_is_anomaly"] is None
+    assert result["ml_feature_deviations"] == {}
+
+
+def test_build_event_payload_includes_ml_fields_from_object():
+    class SampleEvent:
+        ml_anomaly_score = 0.73
+        ml_is_anomaly = True
+        ml_feature_deviations = {"event_rate": 1.8}
+
+    result = ws.build_event_payload(SampleEvent())
+
+    assert result["ml_anomaly_score"] == 0.73
+    assert result["ml_is_anomaly"] is True
+    assert result["ml_feature_deviations"] == {"event_rate": 1.8}
