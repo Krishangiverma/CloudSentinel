@@ -194,31 +194,103 @@ def detect_failed_logins(entries):
 def detect_brute_force(
     entries,
     threshold=DEFAULT_BRUTE_FORCE_THRESHOLD,
+    window_seconds=60,
 ):
     """
-    Detect repeated failed authentication attempts
-    from the same source IP.
+    Detect repeated failed authentication attempts from the same IP.
+
+    Valid timestamps must meet the threshold within the time window.
+    Legacy count-based behavior applies only when timestamps are absent
+    from every failed-login event for that IP. Invalid timestamps are
+    not treated as valid evidence.
     """
+    from datetime import datetime, timezone
+    from numbers import Real
+
+    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
+        raise ValueError("threshold must be a positive integer")
+    if (
+        isinstance(window_seconds, bool)
+        or not isinstance(window_seconds, Real)
+        or window_seconds < 0
+    ):
+        raise ValueError("window_seconds must be a non-negative number")
 
     attempts_by_ip = defaultdict(list)
 
-    for entry in entries:
+    def parse_timestamp(entry):
+        if not isinstance(entry, dict):
+            return None
 
+        value = entry.get("timestamp")
+        if isinstance(value, datetime):
+            parsed = value
+        elif isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(
+                    value.replace("Z", "+00:00")
+                )
+            except ValueError:
+                return None
+        else:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed.astimezone(timezone.utc)
+
+    for entry in entries:
         if not _is_failed_login(entry):
             continue
 
         ip = _get_ip(entry)
-
         if not ip:
             continue
 
-        attempts_by_ip[ip].append(entry)
+        has_timestamp = (
+            isinstance(entry, dict)
+            and entry.get("timestamp") is not None
+            and entry.get("timestamp") != ""
+        )
+
+        attempts_by_ip[ip].append(
+            {
+                "timestamp": parse_timestamp(entry),
+                "has_timestamp": has_timestamp,
+            }
+        )
 
     detections = []
 
-    for ip, attempts in attempts_by_ip.items():
+    for ip, records in attempts_by_ip.items():
+        timestamped = sorted(
+            record["timestamp"]
+            for record in records
+            if record["timestamp"] is not None
+        )
 
-        if len(attempts) < threshold:
+        if timestamped:
+            left = 0
+            max_count = 0
+
+            for right, current in enumerate(timestamped):
+                while (
+                    current - timestamped[left]
+                ).total_seconds() > window_seconds:
+                    left += 1
+
+                max_count = max(max_count, right - left + 1)
+
+            attempt_count = max_count
+        elif any(record["has_timestamp"] for record in records):
+            # Timestamp data was supplied but none was valid.
+            attempt_count = 0
+        else:
+            # Preserve legacy behavior only when timestamps are absent.
+            attempt_count = len(records)
+
+        if attempt_count < threshold:
             continue
 
         detections.append(
@@ -228,14 +300,14 @@ def detect_brute_force(
                 "message": (
                     f"Brute-force authentication attack "
                     f"detected from {ip}: "
-                    f"{len(attempts)} failed attempts"
+                    f"{attempt_count} failed attempts"
                 ),
                 "source": (
                     "CloudSentinel "
                     "Authentication Detector"
                 ),
                 "ip": ip,
-                "attempt_count": len(attempts),
+                "attempt_count": attempt_count,
                 "threshold": threshold,
             }
         )
