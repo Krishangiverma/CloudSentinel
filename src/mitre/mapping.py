@@ -171,6 +171,18 @@ class MITREMapping:
                 )
 
         # ----------------------------------------------------
+        # SUB-TECHNIQUE ID / NAME CONSISTENCY
+        # ----------------------------------------------------
+
+        if (self.subtechnique_id is None) != (
+            self.subtechnique is None
+        ):
+            raise ValueError(
+                "subtechnique_id and subtechnique "
+                "must both be provided or both be None"
+            )
+
+        # ----------------------------------------------------
         # EVIDENCE
         # ----------------------------------------------------
 

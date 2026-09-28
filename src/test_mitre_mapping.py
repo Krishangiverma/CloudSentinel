@@ -172,3 +172,31 @@ def test_evidence_must_be_a_list():
             technique="Brute Force",
             evidence="failed password",
         )
+
+
+# ============================================================
+# DAY 98: SEMANTIC VALIDATION REGRESSION TESTS
+# ============================================================
+
+def test_subtechnique_id_requires_subtechnique_name():
+    with pytest.raises(ValueError):
+        MITREMapping(
+            tactic="Privilege Escalation",
+            technique_id="T1548",
+            technique="Abuse Elevation Control Mechanism",
+            subtechnique_id="T1548.003",
+            evidence=["sudo activity detected"],
+            confidence=0.80,
+        )
+
+
+def test_subtechnique_name_requires_subtechnique_id():
+    with pytest.raises(ValueError):
+        MITREMapping(
+            tactic="Privilege Escalation",
+            technique_id="T1548",
+            technique="Abuse Elevation Control Mechanism",
+            subtechnique="Sudo and Sudo Caching",
+            evidence=["sudo activity detected"],
+            confidence=0.80,
+        )
