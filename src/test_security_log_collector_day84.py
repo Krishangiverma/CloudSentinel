@@ -59,3 +59,56 @@ def test_ingestion_failure_does_not_stop_remaining_events(monkeypatch):
     assert processed == ["first log", "second log", "third log"]
     assert saved == ["first log", "third log"]
     assert count == 2
+
+
+def test_database_save_failure_does_not_stop_remaining_events(monkeypatch):
+    logs = ["first log\n", "second log\n", "third log\n"]
+    processed = []
+    save_attempts = []
+
+    monkeypatch.setattr(
+        security_log, "read_security_logs", lambda: logs
+    )
+    monkeypatch.setattr(
+        security_log, "create_security_event", lambda line: line.strip()
+    )
+    monkeypatch.setattr(
+        security_log, "ingest_event", lambda event: processed.append(event) or event
+    )
+
+    def sometimes_fail(event):
+        save_attempts.append(event)
+        if event == "second log":
+            raise RuntimeError("simulated database failure")
+
+    monkeypatch.setattr(security_log, "save_event", sometimes_fail)
+
+    count = security_log.collect_and_save_events(limit=3)
+
+    assert processed == ["first log", "second log", "third log"]
+    assert save_attempts == ["first log", "second log", "third log"]
+    assert count == 2
+
+
+def test_failure_message_does_not_expose_raw_log_content(monkeypatch, capsys):
+    secret_log = "failed password for private-user"
+
+    monkeypatch.setattr(
+        security_log, "read_security_logs", lambda: [secret_log]
+    )
+    monkeypatch.setattr(
+        security_log, "create_security_event", lambda line: line.strip()
+    )
+
+    def fail_ingestion(event):
+        raise RuntimeError("simulated failure")
+
+    monkeypatch.setattr(security_log, "ingest_event", fail_ingestion)
+
+    count = security_log.collect_and_save_events(limit=1)
+    output = capsys.readouterr().out
+
+    assert count == 0
+    assert "RuntimeError" in output
+    assert secret_log not in output
+    assert "1 security log events failed processing." in output
