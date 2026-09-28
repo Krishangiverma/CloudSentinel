@@ -1,14 +1,18 @@
 """
 CloudSentinel Background Event Worker.
 
-Consumes events from an in-memory queue and processes them
-through the canonical ingestion pipeline.
+Consumes queued events through the canonical ingestion pipeline.
+Individual event failures are logged without terminating the worker.
 """
 
+import logging
 import queue
 import threading
 
 from src.ingestion import ingest_event
+
+
+logger = logging.getLogger(__name__)
 
 
 class EventWorker:
@@ -44,7 +48,7 @@ class EventWorker:
             self._thread.join(timeout=5)
 
     def _run(self):
-        """Consume and process queued events."""
+        """Consume queued events until stopped and the queue is empty."""
         while not self._stop_event.is_set() or not self.event_queue.empty():
             try:
                 event = self.event_queue.get(timeout=0.5)
@@ -53,5 +57,11 @@ class EventWorker:
 
             try:
                 ingest_event(event)
+            except Exception:
+                # Do not log raw event contents, which may contain
+                # sensitive authentication or security information.
+                logger.exception(
+                    "Event ingestion failed; worker will continue."
+                )
             finally:
                 self.event_queue.task_done()
