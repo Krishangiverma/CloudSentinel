@@ -2,198 +2,167 @@
 
 ## Purpose
 
-CloudSentinel processes security telemetry through a modular pipeline.
-The pipeline separates event ingestion, normalization, validation, detection,
-risk evaluation, correlation, and alert generation.
+CloudSentinel uses a modular event-processing architecture to transform
+security telemetry into normalized events, detection findings, risk-enriched
+results, alerts, and correlated incidents.
 
-## Pipeline
+The pipeline is designed to separate ingestion, normalization, validation,
+detection, risk evaluation, correlation, and presentation.
 
-Raw Event
-    |
-    v
-Ingestion
-    |
-    v
-Normalization
-    |
-    v
-Validation
-    |
-    v
-Detection
-    |
-    v
-Risk Evaluation
-    |
-    v
-Correlation
-    |
-    v
-Alert / Incident
-    |
-    v
-SOC Dashboard
+## High-Level Flow
 
-## Stage Responsibilities
+```text
+Linux Logs / Synthetic Events / Optional CloudTrail Records
+                         |
+                         v
+                    Event Ingestion
+                         |
+                         v
+                     Normalization
+                         |
+                         v
+                      Validation
+                         |
+                         v
+                  Detection and Analysis
+                         |
+                         v
+                   Risk Enrichment
+                         |
+                         v
+                 Attack Event Correlation
+                         |
+                         v
+                    Alerts / Incidents
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+        SQLite Persistence     Real-Time Event Bus
+              |                     |
+              v                     v
+          Flask REST API       Flask-SocketIO
+              |                     |
+              +----------+----------+
+                         |
+                         v
+                    SOC Dashboard
+```
+
+This diagram describes the logical architecture. Individual event paths can
+vary according to the ingestion source and the component handling the event.
+
+## Pipeline Stages
 
 ### 1. Ingestion
 
-Responsible for accepting raw telemetry from supported sources.
+Accepts events from supported sources and passes input into the processing
+workflow.
 
-Examples:
+Examples include:
 
-- Linux authentication logs
-- Synthetic security events
-- Future cloud telemetry
+- Linux security-log data.
+- Synthetic security events used for development and testing.
+- AWS CloudTrail records through the optional integration.
 
-Input:
-
-Raw event data.
-
-Output:
-
-Raw event object passed to normalization.
-
----
+CloudTrail support does not imply that an AWS account, credentials, or cloud
+resources are automatically configured.
 
 ### 2. Normalization
 
-Converts different input formats into the CloudSentinel canonical
-security-event representation.
+Converts supported input formats into the canonical CloudSentinel event
+representation.
 
-Examples:
-
-- Raw log strings
-- Dictionary events
-- Future cloud events
-
-Output:
-
-Canonical SecurityEvent.
-
----
+The CloudTrail normalizer maps fields such as event time, event name, event
+source, source IP address, and user identity into a normalized event. Original
+record evidence is retained where supported.
 
 ### 3. Validation
 
-Ensures that normalized events satisfy the CloudSentinel event contract.
+Checks normalized events against the event contract before the relevant
+processing stage continues.
 
-Validation includes:
+Depending on the input path, validation can include required fields,
+timestamps, event types, severity, source, message, and IP address format.
 
-- Required fields
-- Valid timestamp
-- Valid event type
-- Valid severity
-- Valid source
-- Valid message
-- Valid IP address when present
+Invalid input should be rejected or reported rather than silently treated as
+a valid security event.
 
-Invalid events must be rejected before detection.
+### 4. Detection and Analysis
 
----
+Analyzes events using the available detection and analyzer components.
 
-### 4. Detection
+Supported project capabilities include authentication-related detection,
+brute-force detection, configurable YAML rules, and suspicious activity
+analysis. Detection behavior depends on the relevant module and configuration.
 
-Analyzes validated canonical events and identifies security conditions.
+### 5. Risk and Enrichment
 
-Examples:
+Adds risk-related and contextual information to supported events and findings.
 
-- Failed authentication
-- Brute-force activity
-- Suspicious activity
-- Sudo activity
-
-Detection must consume canonical events rather than raw log formats.
-
----
-
-### 5. Risk
-
-Calculates or updates the risk associated with detected activity.
-
-Risk evaluation must be deterministic and explainable.
-
-Risk information should be attached to the event/alert without
-destroying the original evidence.
-
----
+Available components include risk analysis, threat-intelligence enrichment,
+and local ML-based anomaly analysis. Anomaly scores are signals for investigation,
+not proof that an event is malicious.
 
 ### 6. Correlation
 
-Groups related security activity using relationships such as:
+Relates security events to produce higher-level attack context.
 
-- Source IP
-- User identity
-- Event type
-- Time window
-- Related events
+Correlation can consider source identity, user identity, event relationships,
+and temporal proximity. The resulting incident context helps investigators
+understand related activity across multiple events.
 
-Correlation produces higher-level attack context.
+### 7. Alert and Incident Handling
 
----
+Detected and correlated findings can feed alert and incident workflows.
 
-### 7. Alert
+The application exposes endpoints for retrieving incidents, reviewing
+investigation details and timelines, and managing incident status and history.
 
-Converts detected/correlated security activity into an alert or incident.
+### 8. Persistence and Presentation
 
-Alerts may be:
+SQLite stores supported security data. The Flask API exposes event, statistics,
+incident, hunting, and MITRE mapping functionality.
 
-- Stored
-- Displayed
-- Sent to notification systems
-- Forwarded to the real-time SOC dashboard
+The real-time event bus and Flask-SocketIO infrastructure can deliver event
+updates to connected dashboard clients.
 
----
+The in-memory event bus and background queue are process-local; they are not
+a durable distributed messaging system.
 
-## Interface Contract
+## Related Components
 
-Each stage should have a clear input/output boundary.
+| Responsibility | Representative location |
+|---|---|
+| Flask application and API routes | `src/api/app.py` |
+| WebSocket infrastructure | `src/api/websocket.py` |
+| Event model | `src/models/event.py` |
+| Ingestion pipeline | `src/ingestion/pipeline.py` |
+| CloudTrail normalization | `src/ingestion/cloudtrail.py` |
+| Optional CloudTrail client integration | `src/ingestion/aws_cloudtrail.py` |
+| Event replay | `src/ingestion/replay.py` |
+| Risk analysis | `src/analyzers/risk_engine.py` |
+| Attack correlation | `src/analyzers/attack_correlator.py` |
+| Local ML anomaly analysis | `src/analyzers/local_ml_anomaly.py` |
+| Detection rules | `config/rules/detection_rules.yaml` |
+| Database access | `src/data/database.py` |
+| Background worker architecture | `docs/worker_architecture.md` |
 
-Ingestion:
-    raw input -> raw event
+## Design Principles
 
-Normalization:
-    raw event -> SecurityEvent
+- Keep ingestion and detection responsibilities separated.
+- Normalize supported inputs into a common event representation.
+- Preserve source evidence where supported.
+- Keep risk and correlation logic testable.
+- Prefer deterministic validation and explicit error handling.
+- Maintain compatibility with existing modules where practical.
+- Test changes before committing them.
 
-Validation:
-    SecurityEvent -> validated SecurityEvent
-    invalid event -> validation error
+## Operational Boundaries
 
-Detection:
-    validated SecurityEvent -> detection result(s)
-
-Risk:
-    detection result -> risk-enriched result
-
-Correlation:
-    risk-enriched result(s) -> correlated finding(s)
-
-Alert:
-    correlated finding -> alert/incident
-
-## Compatibility
-
-Existing CloudSentinel components should remain functional while the
-new pipeline is introduced.
-
-Legacy imports should be preserved where practical.
-
-The refactor must not intentionally change existing detection behavior
-unless the change is documented and tested.
-
-## Day 29 Direction
-
-The event pipeline will be implemented using modular components:
-
-src/
-    ingestion/
-        pipeline.py
-        normalizer.py
-        validator.py
-
-src/
-    models/
-        event.py
-
-Detection, risk, correlation, and alert components remain independently
-replaceable.
-
+- The local SQLite database is not a shared database service.
+- The in-memory event bus and worker queue do not guarantee recovery after
+  process failure.
+- Live AWS integration requires external client configuration and permissions.
+- Public deployment requires separate authentication, authorization, transport
+  security, and operational-hardening work.

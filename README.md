@@ -1,264 +1,354 @@
 # CloudSentinel
+### Cloud-Based Intrusion Detection & Security Monitoring System
 
-CloudSentinel is a Linux-based security monitoring project designed to detect suspicious activities, analyze security events, generate security alerts, send notifications, and provide a web dashboard for monitoring.
+CloudSentinel is a Python-based security monitoring and investigation platform that
+collects security events, detects suspicious activity, enriches findings with risk
+and threat-intelligence context, correlates related events, and presents security
+alerts through a web-based SOC dashboard.
 
-## Overview
+The project combines Linux security monitoring with modular event processing,
+rule-based detection, incident investigation, local anomaly detection, and optional
+AWS CloudTrail event ingestion.
 
-CloudSentinel collects security-related information from Linux system logs and processes the collected data through detection and analysis components.
+> **Project status:** Active development and local testing. Public production
+> readiness, authentication, and live AWS deployment must be evaluated separately
+> before exposing the service to untrusted networks.
 
-Detected security events are stored in an SQLite database. The alert management system processes important events and can generate security notifications.
+## Key Features
 
-A Flask-based REST API exposes the security data, while the web dashboard provides a visual interface for monitoring events and their severity.
+- **Security event ingestion:** Normalize and validate security events from supported
+  input sources.
+- **Threat detection:** Detect authentication failures, brute-force patterns, and
+  other configured suspicious activity.
+- **Rule-based detection:** Manage detection logic through YAML configuration.
+- **Risk analysis:** Calculate risk information and classify security findings.
+- **Attack correlation:** Relate events using attributes such as source IP, user
+  identity, event relationships, and time windows.
+- **Incident investigation:** Retrieve incidents, review timelines, inspect
+  investigation context, and manage incident status and history.
+- **Threat intelligence:** Enrich events with available threat-intelligence data
+  and indicator context.
+- **MITRE ATT&CK mapping:** Associate supported detection rules and events with
+  relevant ATT&CK mappings.
+- **Local ML anomaly detection:** Extract event features and identify potentially
+  unusual security activity.
+- **Real-time alert feed:** Deliver security-event updates to connected dashboard
+  clients through Flask-SocketIO.
+- **Threat hunting:** Search security data and manage saved hunting queries and
+  investigations.
+- **Persistent storage:** Store security data using SQLite.
+- **Optional AWS CloudTrail integration:** Normalize CloudTrail records and replay
+  or ingest events through a supplied client.
+- **Security reporting and notifications:** Generate reports and support alert
+  notification workflows.
 
-## Features
+## Architecture
 
-- Linux security log monitoring
-- Security event collection
-- Security event analysis
-- Brute-force attack detection
-- Suspicious activity detection
-- IP-related detection
-- Event severity classification
-- SQLite database integration
-- Security alert management
-- Security alert notifications
-- Notification cooldown mechanism
-- Notification logging
-- REST API
-- Web-based security dashboard
-- Automatic dashboard data refresh
-- Security reports
+```mermaid
+flowchart TD
+    A[Linux Security Logs] --> B[Collectors and Event Sources]
+    C[Synthetic Security Events] --> D[Ingestion Pipeline]
+    E[AWS CloudTrail Records - Optional] --> D
+    B --> D
+    D --> F[Normalization and Validation]
+    F --> G[Detection Rules and Analyzers]
+    G --> H[Risk and ML Enrichment]
+    H --> I[Attack Correlation]
+    I --> J[Alerts and Incidents]
+    J --> K[(SQLite Database)]
+    J --> L[Real-Time Event Bus]
+    L --> M[Flask-SocketIO]
+    K --> N[Flask REST API]
+    M --> O[Web SOC Dashboard]
+    N --> O
+```
 
-## System Architecture
+The event-processing design separates ingestion, normalization, validation,
+detection, risk analysis, correlation, and alert presentation into modular
+components. The background worker currently uses an in-memory queue; it is not
+a distributed or durable message broker.
+
+## Technology Stack
+
+| Area | Technologies |
+|---|---|
+| Language | Python |
+| API and web application | Flask |
+| Real-time communication | Flask-SocketIO, Socket.IO |
+| Data storage | SQLite |
+| Detection configuration | YAML, PyYAML |
+| Anomaly detection | Local Python-based ML analysis |
+| Security analysis | Risk scoring, event correlation, threat intelligence |
+| Attack framework | MITRE ATT&CK mapping |
+| Cloud telemetry | Optional AWS CloudTrail client integration |
+| Frontend | HTML, CSS, JavaScript |
+| Testing | pytest |
+| WSGI server option | Gunicorn with threaded workers |
+| Version control | Git and GitHub |
+
+## Repository Structure
 
 ```text
-Linux Security Logs
-        |
-        v
-   Log Collector
-        |
-        v
- Event Analyzer / Detectors
-        |
-        v
-  Security Events
-        |
-        v
- SQLite Database
-        |
-        +------------------+
-        |                  |
-        v                  v
- Alert Manager       REST API
-        |                  |
-        v                  v
- Notifications       Web Dashboard
-Project Structure
 CloudSentinel/
-│
 ├── config/
-│   ├── __init__.py
-│   └── settings.py
-│
-├── data/
-│   ├── __init__.py
-│   └── cloudsentinel.db
-│
-├── logs/
-│   └── notifications.log
-│
+│   └── rules/
+│       └── detection_rules.yaml
+├── docs/
+│   ├── event_pipeline.md
+│   └── worker_architecture.md
 ├── reports/
-│   ├── security_alerts.txt
-│   └── security_report.txt
-│
 ├── src/
+│   ├── ai/
 │   ├── alerts/
-│   │   ├── __init__.py
-│   │   └── alert_engine.py
-│   │
 │   ├── analyzers/
-│   │   ├── __init__.py
-│   │   └── event_analyzer.py
-│   │
 │   ├── api/
-│   │   ├── app.py
-│   │   └── dashboard.py
-│   │
 │   ├── collectors/
-│   │   └── security_log.py
-│   │
 │   ├── data/
-│   │   └── database.py
-│   │
+│   ├── hunting/
+│   ├── ingestion/
+│   ├── mitre/
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── event.py
-│   │
-│   ├── reports/
-│   │   ├── __init__.py
-│   │   └── security_report.py
-│   │
+│   ├── realtime/
+│   ├── rules/
+│   ├── threat_intel/
 │   ├── agent.py
-│   ├── alert.py
-│   ├── alert_manager.py
-│   ├── brute_force.py
-│   ├── detector.py
-│   ├── event.py
-│   ├── ip_detector.py
-│   ├── log_collector.py
-│   ├── main.py
-│   ├── notification_manager.py
-│   ├── realtime_monitor.py
-│   ├── report_generator.py
-│   └── system_monitor.py
-│
+│   └── ...
 ├── templates/
 │   └── dashboard.html
-│
 ├── tests/
 │   └── data/
 │       └── sample_auth.log
-│
+├── .env.example
 ├── .gitignore
-├── README.md
-└── test_database.py
-Security Detection
-CloudSentinel analyzes Linux security events and identifies potentially suspicious behavior.
-The project includes detection logic for:
-Brute-force login attempts
-Suspicious activity
-Security log activity
-Sudo activity
-IP-related security events
-Events are assigned severity levels:
-HIGH
-MEDIUM
-LOW
-Event Management
-Security events are stored in the SQLite database.
-Each event can contain:
-Event ID
-Timestamp
-Event type
-Severity
-Message
-Source
-IP address
-The API can retrieve stored events and also supports creating new security events.
-Alert Management
-The alert management system processes detected security events and generates security alerts based on event information and severity.
-Alerts are stored and can be used by the notification system.
-Notification System
-CloudSentinel includes a notification system for security alerts.
-The notification system provides:
-Security alert notifications
-Notification cooldown
-Notification logging
-Prevention of excessive repeated notifications
-Notification activity is recorded in:
-logs/notifications.log
-Database
-CloudSentinel uses SQLite for persistent local storage.
-The database contains security-related information such as events and alerts.
-Database location:
-data/cloudsentinel.db
-REST API
-The project includes a Flask REST API.
-API Endpoints
-Method	Endpoint	Description
-GET	/	Returns CloudSentinel API information
-GET	/api	Returns available API information
-GET	/api/health	Checks API health
-GET	/api/events	Returns stored security events
-POST	/api/events	Creates a new security event
-GET	/api/stats	Returns event statistics
-GET	/dashboard	Opens the security dashboard
-Web Dashboard
-CloudSentinel includes a browser-based security monitoring dashboard.
-The dashboard displays:
-Total security events
-HIGH severity events
-MEDIUM severity events
-LOW severity events
-Security event table
-The event table displays:
-ID
-Event type
-Severity
-Message
-Source
-IP address
-Timestamp
-The dashboard retrieves event information from the Flask API.
-Dashboard data automatically refreshes every 10 seconds.
-Running the Project
-1. Activate the virtual environment
-source venv/bin/activate
-2. Start the Flask API
-From the project root:
+├── pytest.ini
+├── requirements.txt
+└── requirements-dev.txt
+```
+
+The tree highlights major components; additional modules and tests are present
+throughout `src/`.
+
+## Prerequisites
+
+- Linux or Ubuntu is recommended for local security-log testing.
+- Python version compatible with the dependencies in `requirements.txt`.
+- Git.
+- Optional: Node.js/npm if you need to manage the existing Socket.IO client
+  dependency.
+- Optional: threat-intelligence credentials or an AWS client for integrations
+  that require them.
+
+## Installation
+
+Clone the repository and enter the project directory:
+
+```bash
+git clone https://github.com/Krishangiverma/CloudSentinel.git
+cd CloudSentinel
+```
+
+Create and activate a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install the development dependencies:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+```
+
+Check installed dependency consistency:
+
+```bash
+python -m pip check
+```
+
+## Configuration
+
+An `.env.example` template is provided for optional threat-intelligence settings.
+Copy it only if you need to customize local configuration:
+
+```bash
+cp .env.example .env
+```
+
+Set `OTX_API_KEY` in `.env` only if you are using the relevant OTX integration.
+Never commit `.env`, API tokens, credentials, or other secrets.
+
+The example file documents `OTX_BASE_URL` as an optional override. Review the
+specific integration's configuration handling before relying on any environment
+variable.
+
+## Run Locally
+
+From the project root, with the virtual environment activated:
+
+```bash
 python -m src.api.app
-The Flask server runs on port 5000.
-Dashboard Access
-From the Ubuntu VM:
+```
+
+The development server is configured to listen on port `5000`.
+
+Open the dashboard:
+
+```text
 http://127.0.0.1:5000/dashboard
-From the Mac host:
-http://192.168.64.3:5000/dashboard
-API Testing
-Health Check
+```
+
+Check API health:
+
+```bash
 curl http://127.0.0.1:5000/api/health
-Get Security Events
+```
+
+The health endpoint reports the API service status. It should not be interpreted
+as a complete readiness check for every database, integration, or background
+component.
+
+### Optional threaded WSGI launch
+
+A Gunicorn configuration check has been performed with a single `gthread` worker.
+For a local deployment experiment, use:
+
+```bash
+python -m gunicorn \
+  --worker-class gthread \
+  --workers 1 \
+  --threads 20 \
+  --bind 0.0.0.0:5000 \
+  src.api.app:app
+```
+
+This is a deployment starting point, not a claim of hardened production readiness.
+The application uses Flask-SocketIO with threading mode and in-process event-bus
+state, so do not increase the worker count without reviewing shared state and
+real-time event delivery. For a public deployment, configure a reverse proxy and
+TLS, restrict network access, add appropriate authentication and authorization,
+and verify WebSocket behavior in the target environment.
+
+## API Reference
+
+The following routes are implemented in the application. Individual endpoints may
+require specific request bodies, parameters, or existing records.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/` | API home |
+| GET | `/api` | API information |
+| GET | `/api/health` | Service health response |
+| GET | `/dashboard` | Security monitoring dashboard |
+| GET | `/api/events` | Retrieve security events |
+| POST | `/api/events` | Submit a security event |
+| GET | `/api/stats` | Event statistics and risk analysis |
+| GET | `/api/incidents` | Retrieve correlated incidents |
+| GET | `/api/incidents/<incident_id>` | Retrieve an incident |
+| PATCH | `/api/incidents/<incident_id>/status` | Update incident status |
+| GET | `/api/incidents/<incident_id>/history` | Retrieve incident status history |
+| GET | `/api/incidents/<incident_id>/investigation` | Retrieve investigation details |
+| GET | `/api/incidents/<incident_id>/report` | Retrieve an incident report |
+| GET | `/api/incidents/<incident_id>/context` | Retrieve investigation context |
+| POST | `/api/hunts/search` | Search security data |
+| GET, POST | `/api/hunts/saved` | List or save hunting queries |
+| GET, DELETE | `/api/hunts/saved/<query_id>` | Retrieve or delete a saved query |
+| GET, POST | `/api/hunts/investigations` | List or create investigations |
+| GET | `/api/hunts/investigations/<investigation_id>` | Retrieve an investigation |
+| GET | `/api/hunts/investigations/<investigation_id>/timeline` | Retrieve an investigation timeline |
+| POST | `/api/hunts/investigations/<investigation_id>/promote` | Promote a hunting finding |
+| GET | `/api/mitre/mappings` | Retrieve MITRE mappings |
+| GET | `/api/mitre/mappings/<rule_id>` | Retrieve a mapping for a rule |
+
+Example requests:
+
+```bash
+curl http://127.0.0.1:5000/api
 curl http://127.0.0.1:5000/api/events
-Get Statistics
 curl http://127.0.0.1:5000/api/stats
-Testing
-The project contains tests for multiple CloudSentinel components, including:
-Database functionality
-Alert Manager
-Brute-force detection
-General event detection
-IP detection
-Example:
-python -m unittest src.test_alert_manager
-Reports
-CloudSentinel can generate security-related reports.
-Reports are stored under:
-reports/
-Current report files include:
-security_alerts.txt
-security_report.txt
-Development Environment
-The project has been developed and tested in a Linux environment using Ubuntu running inside a virtual machine.
-The Flask API is configured to listen on:
-0.0.0.0:5000
-This allows the dashboard to be accessed from the host machine when VM networking is configured correctly.
-Current Project Status
-The following major components are implemented:
-Security log collection
-Security event detection
-Event analysis
-SQLite database integration
-Brute-force detection
-Suspicious activity detection
-Alert management
-Security alert notifications
-Notification cooldown
-Notification logging
-Flask REST API
-Web security dashboard
-Dashboard automatic refresh
-Security reports
-Ubuntu VM deployment and testing
-Future Improvements
-Possible future improvements include:
-Dashboard authentication
-Role-based access control
-Advanced security visualizations
-Real-time event streaming
-Improved alert filtering
-Email or external notification integrations
-Production WSGI deployment
-Containerized deployment
-Cloud deployment
-More advanced threat detection
-Disclaimer
-CloudSentinel is an educational cybersecurity monitoring project intended for learning, experimentation, and defensive security monitoring.
+curl http://127.0.0.1:5000/api/incidents
+curl http://127.0.0.1:5000/api/mitre/mappings
+```
+
+For write operations, inspect the relevant route implementation and tests for
+the expected JSON schema and validation behavior.
+
+## Testing
+
+Run the complete pytest suite from the repository root:
+
+```bash
+python -m pytest -q
+```
+
+Run a focused test module:
+
+```bash
+python -m pytest -q src/test_attack_correlator.py
+python -m pytest -q src/test_aws_cloudtrail_day117.py
+python -m pytest -q src/test_local_ml_anomaly_day110.py
+```
+
+Check patch whitespace before committing:
+
+```bash
+git diff --check
+```
+
+Test results depend on the current code and environment. Run the suite locally
+before using a test count or pass rate in a release description.
+
+## AWS CloudTrail Integration
+
+CloudSentinel includes optional code for normalizing CloudTrail records and
+processing records through a supplied client. The integration supports pagination
+and validates input parameters, with tests using a mocked client.
+
+The implementation does not by itself provision AWS resources or configure an
+AWS account. Live use requires an appropriately configured AWS client, credentials,
+region, permissions, and validation in a controlled environment. Follow least
+privilege and review AWS charges before enabling any billable services.
+
+## Data and Security Considerations
+
+- SQLite data and runtime logs may contain sensitive security information.
+- Keep credentials and API keys out of source control.
+- Use synthetic data for public demonstrations whenever possible.
+- Do not expose the development server or unauthenticated API to the public
+  internet.
+- Review and restrict endpoints that create events, change incident status,
+  manage hunting data, or expose investigation context.
+- Apply authentication, authorization, input validation, logging, TLS, and
+  deployment-specific hardening before handling real production telemetry.
+- The in-memory worker queue is not durable across process restarts.
+- Review data retention and backup requirements before using the system for
+  operational security monitoring.
+
+## Current Limitations
+
+CloudSentinel is an evolving security engineering project. The following areas
+require environment-specific review before production use:
+
+- Authentication and role-based access control.
+- Public deployment hardening and TLS/reverse-proxy configuration.
+- Live AWS CloudTrail integration and permissions validation.
+- Persistence and recovery for queued background work.
+- Multi-process or multi-instance real-time event delivery.
+- Operational monitoring, retention, and backup policies.
+- End-to-end validation against representative production telemetry.
+
+## Documentation
+
+- [Event Processing Pipeline](docs/event_pipeline.md)
+- [Background Worker Architecture](docs/worker_architecture.md)
+
+## Author and Project
+
+**CloudSentinel** — Cloud-Based Intrusion Detection & Security Monitoring System
+
+GitHub repository: https://github.com/Krishangiverma/CloudSentinel
+
+Built as a hands-on security engineering project exploring event ingestion,
+detection, risk analysis, incident correlation, threat intelligence, and SOC-style
+monitoring.

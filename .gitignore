@@ -1,5 +1,54 @@
+# Python virtual environments
+.venv/
 venv/
-__pycache__/
-*.pyc
-.env
+env/
+ENV/
 
+# Python generated files and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Node.js dependencies and build output
+node_modules/
+dist/
+build/
+
+# Local runtime databases and SQLite sidecar files
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite3
+
+# Runtime logs and generated text reports
+logs/*.log
+reports/*.txt
+
+# Local backups
+backups/
+*.bak
+*_backup.py
+*_backup.html
+*_prechange*
+
+# Operating-system metadata
+.DS_Store
+
+# Local historical snapshots; canonical versions live under src/
+attack_correlator_day61_full.py
+attack_correlator_day62_full.py
+test_attack_correlator_day61_full.py
+test_attack_correlator_day62_full.py
+*.day*_backup
+test_database.py.day101-backup
+
+# Captured terminal output / patch snapshots; preserve locally only
+/tatus --shortq
+/tructure tests"
