@@ -11,6 +11,7 @@ response, and incident-status behavior is preserved.
 """
 
 from datetime import datetime, timezone
+from .confidence_scorer import calculate_confidence
 
 DEFAULT_THRESHOLD = 3
 DEFAULT_TIME_WINDOW_SECONDS = 300
@@ -896,12 +897,31 @@ def _build_incident(
     users = correlation_metadata["users"]
     attack_chain = correlation_metadata["attack_chain"]
 
+    confidence = calculate_confidence(
+        {
+            "event_count": len(ordered_events),
+            "events": ordered_events,
+            "source_ips": source_ips,
+            "users": users,
+            "max_risk_score": max_risk,
+            "max_threat_intel_score": max_threat_intel_score,
+            "critical_event_count": critical_event_count,
+            "high_risk_event_count": high_risk_event_count,
+            "attack_chain": attack_chain,
+            "correlation": correlation_metadata,
+        },
+        time_window_seconds=time_window_seconds,
+    )
+
     return {
         "incident_id": incident_id,
         "ip_address": ip_address,
         "source_ips": source_ips,
         "users": users,
         "attack_chain": attack_chain,
+        "confidence_score": confidence["score"],
+        "confidence_level": confidence["level"],
+        "confidence": confidence,
         "event_count": len(ordered_events),
         "event_types": event_types,
         "attack_pattern": attack_pattern,
