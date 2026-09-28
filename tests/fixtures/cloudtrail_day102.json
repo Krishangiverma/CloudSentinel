@@ -1,0 +1,30 @@
+{
+  "Records": [
+    {
+      "eventVersion": "1.08",
+      "eventTime": "2026-10-21T02:30:00Z",
+      "eventSource": "signin.amazonaws.com",
+      "eventName": "ConsoleLogin",
+      "awsRegion": "ap-south-1",
+      "sourceIPAddress": "192.0.2.10",
+      "userIdentity": {
+        "type": "IAMUser",
+        "userName": "synthetic-test-user"
+      },
+      "responseElements": null,
+      "requestParameters": null
+    },
+    {
+      "eventVersion": "1.08",
+      "eventTime": "2026-10-21T02:31:00Z",
+      "eventSource": "iam.amazonaws.com",
+      "eventName": "ListUsers",
+      "awsRegion": "ap-south-1",
+      "sourceIPAddress": "-",
+      "userIdentity": {
+        "type": "IAMUser",
+        "userName": "synthetic-test-user"
+      }
+    }
+  ]
+}
