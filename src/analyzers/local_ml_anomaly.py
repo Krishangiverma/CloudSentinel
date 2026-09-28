@@ -105,14 +105,22 @@ class LocalStatisticalAnomalyModel:
     The score is a heuristic deviation score, not a probability.
     """
 
-    def __init__(self, threshold: float = 3.0, scale_floor: float = 1.0):
+    def __init__(
+        self,
+        threshold: float = 3.0,
+        scale_floor: float = 1.0,
+        indicator_scale_floor: float = 0.25,
+    ):
         if threshold <= 0:
             raise ValueError("threshold must be positive")
         if scale_floor <= 0:
             raise ValueError("scale_floor must be positive")
+        if indicator_scale_floor <= 0:
+            raise ValueError("indicator_scale_floor must be positive")
 
         self.threshold = float(threshold)
         self.scale_floor = float(scale_floor)
+        self.indicator_scale_floor = float(indicator_scale_floor)
         self._means: tuple[float, ...] | None = None
         self._scales: tuple[float, ...] | None = None
         self.training_count = 0
@@ -129,8 +137,16 @@ class LocalStatisticalAnomalyModel:
 
         columns = list(zip(*rows))
         self._means = tuple(mean(column) for column in columns)
+
+        indicator_features = {"auth_failure_signal", "high_signal_event_type"}
         self._scales = tuple(
-            max(pstdev(column), self.scale_floor) for column in columns
+            max(
+                pstdev(column),
+                self.indicator_scale_floor
+                if feature_name in indicator_features
+                else self.scale_floor,
+            )
+            for feature_name, column in zip(FEATURE_NAMES, columns)
         )
         self.training_count = len(rows)
         return self
