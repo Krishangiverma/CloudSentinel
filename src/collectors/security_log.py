@@ -95,10 +95,10 @@ def create_security_event(log_line):
 
 def collect_and_save_events(limit=20):
     """
-    Read security logs, convert them into SecurityEvent objects,
-    and save them into the CloudSentinel database.
+    Read security logs, normalize and validate events, and save them.
 
     A limit of zero processes no events. Negative limits are rejected.
+    Individual event failures are logged without exposing raw log content.
     """
     if isinstance(limit, bool) or not isinstance(limit, int):
         raise TypeError("limit must be a non-negative integer")
@@ -117,15 +117,25 @@ def collect_and_save_events(limit=20):
         return 0
 
     saved_count = 0
+    failed_count = 0
 
-    # Process only the latest requested number of log entries.
     for log_line in logs[-limit:]:
-        event = create_security_event(log_line)
-        event = ingest_event(event)
-        save_event(event)
-        saved_count += 1
+        try:
+            event = create_security_event(log_line)
+            event = ingest_event(event)
+            save_event(event)
+            saved_count += 1
+        except Exception as exc:
+            failed_count += 1
+            print(
+                f"Security log event processing failed "
+                f"({type(exc).__name__}); continuing."
+            )
 
     print(f"{saved_count} security events saved to database.")
+    if failed_count:
+        print(f"{failed_count} security log events failed processing.")
+
     return saved_count
 
 
