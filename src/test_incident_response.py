@@ -690,3 +690,56 @@ def test_incident_status_api_returns_404_for_unknown_incident():
         payload["message"]
         == "Security incident not found."
     )
+
+
+def test_incident_lifecycle_api_open_to_investigating_to_resolved():
+    """Verify the complete incident status lifecycle through the API."""
+    from src.api.app import app
+    from src.data.database import set_incident_status
+
+    client = app.test_client()
+
+    incidents_response = client.get("/api/incidents")
+    assert incidents_response.status_code == 200
+
+    incidents = incidents_response.get_json()["incidents"]
+    assert incidents
+
+    incident_id = incidents[0]["incident_id"]
+
+    try:
+        set_incident_status(incident_id, "OPEN")
+
+        investigating_response = client.patch(
+            f"/api/incidents/{incident_id}/status",
+            json={"status": "INVESTIGATING"},
+        )
+        assert investigating_response.status_code == 200
+        assert (
+            investigating_response.get_json()["incident"]["status"]
+            == "INVESTIGATING"
+        )
+
+        resolved_response = client.patch(
+            f"/api/incidents/{incident_id}/status",
+            json={"status": "RESOLVED"},
+        )
+        assert resolved_response.status_code == 200
+        assert (
+            resolved_response.get_json()["incident"]["status"]
+            == "RESOLVED"
+        )
+
+        reloaded_response = client.get(
+            f"/api/incidents/{incident_id}"
+        )
+        assert reloaded_response.status_code == 200
+
+        reloaded_incident = reloaded_response.get_json()["incident"]
+        assert reloaded_incident["status"] == "RESOLVED"
+        assert (
+            reloaded_incident["evidence"]["metadata"]["status"]
+            == "RESOLVED"
+        )
+    finally:
+        set_incident_status(incident_id, "OPEN")
