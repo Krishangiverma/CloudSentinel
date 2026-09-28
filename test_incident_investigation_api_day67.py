@@ -1,13 +1,18 @@
 """
-CloudSentinel Day 67 - Incident Investigation API tests.
+CloudSentinel Day 67 / Day 96 - Incident Investigation API tests.
 
-Validates the read-only investigation endpoint that exposes:
-    - incident metadata
-    - attack graph
-    - incident timeline
+Validates:
+    - unknown incident handling
+    - investigation metadata
+    - attack graph structure
+    - incident timeline structure
+    - case-insensitive incident IDs
+    - no disclosure of internal exception details
 """
 
-from src.api.app import app
+import src.api.app as app_module
+
+app = app_module.app
 
 
 def _get_first_incident_id(client):
@@ -57,7 +62,6 @@ def test_investigation_endpoint_returns_graph_and_timeline():
 
     assert data["status"] == "success"
     assert data["incident_id"] == incident_id
-
     assert "investigation" in data
 
     investigation = data["investigation"]
@@ -84,11 +88,9 @@ def test_investigation_timeline_has_expected_structure():
     timeline = investigation["timeline"]
 
     assert isinstance(timeline, dict)
-
     assert timeline["incident_id"] == incident_id
     assert "entries" in timeline
     assert "relationships" in timeline
-
     assert isinstance(timeline["entries"], list)
     assert isinstance(timeline["relationships"], list)
 
@@ -111,16 +113,13 @@ def test_investigation_graph_has_expected_structure():
     graph = investigation["graph"]
 
     assert isinstance(graph, dict)
-
     assert graph["incident_id"] == incident_id
     assert "node_count" in graph
     assert "edge_count" in graph
     assert "nodes" in graph
     assert "edges" in graph
-
     assert isinstance(graph["nodes"], list)
     assert isinstance(graph["edges"], list)
-
     assert graph["node_count"] == len(graph["nodes"])
     assert graph["edge_count"] == len(graph["edges"])
 
@@ -139,7 +138,6 @@ def test_investigation_endpoint_is_case_insensitive():
     response_upper = client.get(
         f"/api/incidents/{uppercase_id}/investigation"
     )
-
     response_lower = client.get(
         f"/api/incidents/{lowercase_id}/investigation"
     )
@@ -157,8 +155,44 @@ def test_investigation_endpoint_is_case_insensitive():
         upper_data["investigation"]["graph"]
         == lower_data["investigation"]["graph"]
     )
-
     assert (
         upper_data["investigation"]["timeline"]
         == lower_data["investigation"]["timeline"]
+    )
+
+
+def test_investigation_endpoint_does_not_expose_internal_errors(
+    monkeypatch,
+):
+    def raise_internal_error():
+        raise RuntimeError(
+            "sensitive internal implementation detail"
+        )
+
+    monkeypatch.setattr(
+        app_module,
+        "_build_correlated_incidents",
+        raise_internal_error,
+    )
+
+    client = app.test_client()
+
+    response = client.get(
+        "/api/incidents/INC-ERROR-96/investigation"
+    )
+
+    assert response.status_code == 500
+    assert response.is_json
+
+    data = response.get_json()
+
+    assert data["status"] == "error"
+    assert (
+        data["message"]
+        == "Failed to retrieve incident investigation."
+    )
+    assert "error" not in data
+    assert (
+        "sensitive internal implementation detail"
+        not in response.get_data(as_text=True)
     )

@@ -1676,12 +1676,10 @@ def get_incident_investigation(incident_id):
             "incident_id": incident_id
         }), 404
 
-    except Exception as e:
-
+    except Exception:
         return jsonify({
             "status": "error",
-            "message": "Failed to retrieve incident investigation.",
-            "error": str(e)
+            "message": "Failed to retrieve incident investigation."
         }), 500
 
 
