@@ -278,6 +278,22 @@ def initialize_database():
     )
 
     # --------------------------------------------------------
+    # Day-111 Incident Status Audit History
+    # --------------------------------------------------------
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS incident_status_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            incident_id TEXT NOT NULL,
+            previous_status TEXT,
+            new_status TEXT NOT NULL,
+            changed_at TEXT NOT NULL
+        )
+        """
+    )
+
+    # --------------------------------------------------------
     # Security Alerts Table
     # --------------------------------------------------------
 
@@ -714,51 +730,115 @@ def set_incident_status(
     status,
 ):
     """
-    Persist an incident status.
+    Persist an incident status and record genuine status changes.
 
-    The caller is responsible for validating lifecycle
-    transitions before calling this function.
+    The caller remains responsible for validating lifecycle transitions.
+    Current status and audit history are updated atomically.
     """
 
-    DB_PATH.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    initialize_database()
 
+    normalized_id = str(incident_id).strip().upper()
+    normalized_status = str(status).strip().upper()
+
+    if not normalized_id:
+        raise ValueError("Incident ID must not be empty.")
+    if not normalized_status:
+        raise ValueError("Incident status must not be empty.")
+
+    changed_at = datetime.now().isoformat()
+
+    connection = sqlite3.connect(DB_PATH)
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+
+        cursor.execute(
+            """
+            SELECT status
+            FROM incident_status
+            WHERE incident_id = ?
+            """,
+            (normalized_id,),
+        )
+        row = cursor.fetchone()
+        previous_status = (
+            str(row[0]).strip().upper()
+            if row is not None
+            else None
+        )
+
+        # Avoid duplicate history rows for repeated status requests.
+        if previous_status != normalized_status:
+            cursor.execute(
+                """
+                INSERT INTO incident_status (
+                    incident_id, status, updated_at
+                )
+                VALUES (?, ?, ?)
+                ON CONFLICT(incident_id)
+                DO UPDATE SET
+                    status = excluded.status,
+                    updated_at = excluded.updated_at
+                """,
+                (normalized_id, normalized_status, changed_at),
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO incident_status_history (
+                    incident_id,
+                    previous_status,
+                    new_status,
+                    changed_at
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    normalized_id,
+                    previous_status,
+                    normalized_status,
+                    changed_at,
+                ),
+            )
+
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def get_incident_status_history(incident_id):
+    """Return status-change history in chronological order."""
+
+    normalized_id = str(incident_id).strip().upper()
+    if not normalized_id:
+        return []
+
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     initialize_database()
 
     connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
+    connection.row_factory = sqlite3.Row
 
-    normalized_id = str(
-        incident_id
-    ).strip().upper()
+    try:
+        rows = connection.execute(
+            """
+            SELECT
+                previous_status,
+                new_status,
+                changed_at
+            FROM incident_status_history
+            WHERE incident_id = ?
+            ORDER BY id ASC
+            """,
+            (normalized_id,),
+        ).fetchall()
 
-    normalized_status = str(
-        status
-    ).strip().upper()
-
-    updated_at = datetime.now().isoformat()
-
-    cursor.execute(
-        """
-        INSERT INTO incident_status (
-            incident_id,
-            status,
-            updated_at
-        )
-        VALUES (?, ?, ?)
-        ON CONFLICT(incident_id)
-        DO UPDATE SET
-            status = excluded.status,
-            updated_at = excluded.updated_at
-        """,
-        (
-            normalized_id,
-            normalized_status,
-            updated_at,
-        ),
-    )
-
-    connection.commit()
-    connection.close()
+        return [dict(row) for row in rows]
+    finally:
+        connection.close()

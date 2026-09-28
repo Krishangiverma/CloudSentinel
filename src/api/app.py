@@ -31,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.data.database import (
     get_all_events,
     get_incident_status,
+    get_incident_status_history,
     save_event,
     set_incident_status,
 )
@@ -1619,6 +1620,53 @@ def get_incident(incident_id):
             "status": "error",
             "message": "Failed to retrieve security incident.",
             "error": str(e)
+        }), 500
+
+
+# ============================================================
+# GET INCIDENT STATUS HISTORY
+# ============================================================
+
+@app.route(
+    "/api/incidents/<incident_id>/history",
+    methods=["GET"]
+)
+def get_incident_status_history_api(incident_id):
+    """Return the chronological status audit trail for an incident."""
+
+    try:
+        incidents = _build_correlated_incidents()
+        normalized_id = str(incident_id).strip().upper()
+
+        incident_exists = any(
+            str(incident.get("incident_id", "")).strip().upper()
+            == normalized_id
+            for incident in incidents
+        )
+
+        if not incident_exists:
+            return jsonify({
+                "status": "error",
+                "message": "Security incident not found.",
+                "incident_id": incident_id,
+            }), 404
+
+        history = get_incident_status_history(normalized_id)
+
+        return jsonify({
+            "status": "success",
+            "incident_id": normalized_id,
+            "count": len(history),
+            "history": history,
+        })
+
+    except Exception:
+        app.logger.exception(
+            "Failed to retrieve incident status history."
+        )
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve incident status history.",
         }), 500
 
 
