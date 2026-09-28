@@ -141,3 +141,61 @@ def test_broadcast_event_delegates_to_handler(monkeypatch):
 
     assert ws.broadcast_event(event) is expected
     assert calls == [event]
+
+
+def test_multiple_websocket_clients_connect_successfully():
+    first_client = ws.socketio.test_client(app)
+    second_client = ws.socketio.test_client(app)
+
+    try:
+        assert first_client.is_connected()
+        assert second_client.is_connected()
+
+        for client in (first_client, second_client):
+            received = client.get_received()
+            statuses = [
+                item for item in received
+                if item["name"] == "connection_status"
+            ]
+
+            assert statuses
+            assert statuses[0]["args"][0]["status"] == "connected"
+    finally:
+        first_client.disconnect()
+        second_client.disconnect()
+
+
+def test_websocket_disconnect_completes(capsys):
+    client = ws.socketio.test_client(app)
+
+    assert client.is_connected()
+
+    client.disconnect()
+
+    assert not client.is_connected()
+    assert "Dashboard client disconnected." in capsys.readouterr().out
+
+
+def test_new_client_receives_connection_status_after_previous_disconnect():
+    first_client = ws.socketio.test_client(app)
+
+    try:
+        assert first_client.is_connected()
+    finally:
+        first_client.disconnect()
+
+    second_client = ws.socketio.test_client(app)
+
+    try:
+        assert second_client.is_connected()
+
+        received = second_client.get_received()
+        statuses = [
+            item for item in received
+            if item["name"] == "connection_status"
+        ]
+
+        assert statuses
+        assert statuses[0]["args"][0]["status"] == "connected"
+    finally:
+        second_client.disconnect()
