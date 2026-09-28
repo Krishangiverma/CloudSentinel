@@ -1,8 +1,8 @@
-"""Day 72: Validate CloudSentinel investigation context."""
+"""Day 91: Harden CloudSentinel investigation-context validation."""
 
 from math import isfinite
 from numbers import Real
-from typing import Any, Dict, List
+from typing import Any, List
 
 from src.ai.investigation_context import CONTEXT_SCHEMA_VERSION
 
@@ -46,14 +46,12 @@ def validate_investigation_context(context: Any) -> List[str]:
             f"{context['schema_version']}."
         )
 
+    # Incident validation
     incident = context["incident"]
+
     for field in ("incident_id", "attack_pattern", "status"):
-        if field not in incident or not isinstance(
-            incident[field], str
-        ):
-            errors.append(
-                f"incident.{field} must be a string."
-            )
+        if field not in incident or not isinstance(incident[field], str):
+            errors.append(f"incident.{field} must be a string.")
 
     event_count = incident.get("event_count")
     if (
@@ -65,11 +63,20 @@ def validate_investigation_context(context: Any) -> List[str]:
             "incident.event_count must be a non-negative integer."
         )
 
+    # Optional incident fields may be absent or None.
+    for field in ("confidence", "response_priority"):
+        value = incident.get(field)
+        if value is not None and not isinstance(value, (str, Real)):
+            errors.append(f"incident.{field} must be a string, numeric, or None.")
+
+    # Events must contain dictionaries.
     for index, event in enumerate(context["events"]):
         if not isinstance(event, dict):
             errors.append(f"events[{index}] must be a dictionary.")
 
+    # Risk validation
     risk = context["risk"]
+
     for field in ("max_score", "average_score"):
         value = risk.get(field)
 
@@ -103,15 +110,12 @@ def validate_investigation_context(context: Any) -> List[str]:
         errors.append("risk.level_counts must be a dictionary.")
 
     threat_score = risk.get("max_threat_intel_score")
-    if (
-        not isinstance(threat_score, int)
-        or isinstance(threat_score, bool)
-    ):
-        errors.append(
-            "risk.max_threat_intel_score must be an integer."
-        )
+    if not isinstance(threat_score, int) or isinstance(threat_score, bool):
+        errors.append("risk.max_threat_intel_score must be an integer.")
 
+    # IOC validation
     iocs = context["iocs"]
+
     if not isinstance(iocs.get("summary"), dict):
         errors.append("iocs.summary must be a dictionary.")
 
@@ -144,15 +148,39 @@ def validate_investigation_context(context: Any) -> List[str]:
                         "must be a list of strings."
                     )
 
-    for section in ("attack_graph",):
-        for field in ("nodes", "edges"):
-            if not isinstance(context[section].get(field), list):
+    # Attack graph collections and their individual items.
+    attack_graph = context["attack_graph"]
+
+    for field in ("nodes", "edges"):
+        values = attack_graph.get(field)
+
+        if not isinstance(values, list):
+            errors.append(f"attack_graph.{field} must be a list.")
+            continue
+
+        for index, item in enumerate(values):
+            if not isinstance(item, dict):
                 errors.append(
-                    f"{section}.{field} must be a list."
+                    f"attack_graph.{field}[{index}] must be a dictionary."
                 )
 
+    # Timeline collections and their individual items.
+    timeline = context["timeline"]
+
     for field in ("entries", "relationships"):
-        if not isinstance(context["timeline"].get(field), list):
+        values = timeline.get(field)
+
+        if not isinstance(values, list):
             errors.append(f"timeline.{field} must be a list.")
+            continue
+
+        for index, item in enumerate(values):
+            if not isinstance(item, dict):
+                errors.append(
+                    f"timeline.{field}[{index}] must be a dictionary."
+                )
+
+    # attack_chain is required to be a dictionary by the section check.
+    # Its internal schema is left unchanged in this hardening pass.
 
     return errors
