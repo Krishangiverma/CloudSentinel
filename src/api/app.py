@@ -50,6 +50,8 @@ from src.hunting.hunt_engine import (
 )
 from src.hunting.hunt_storage import HuntStorage
 from src.api.ioc_investigation import ioc_investigation_bp
+from src.attack_graph.attack_graph import build_attack_graph
+from src.timeline.incident_timeline import build_incident_timeline
 
 
 # ============================================================
@@ -1612,6 +1614,70 @@ def get_incident(incident_id):
         return jsonify({
             "status": "error",
             "message": "Failed to retrieve security incident.",
+            "error": str(e)
+        }), 500
+
+
+# ============================================================
+# INCIDENT INVESTIGATION
+# ============================================================
+
+@app.route(
+    "/api/incidents/<incident_id>/investigation",
+    methods=["GET"]
+)
+def get_incident_investigation(incident_id):
+    """
+    Return the investigation graph and timeline
+    for one correlated security incident.
+
+    Day 67:
+        Expose existing Day 63 attack graph and
+        Day 64 incident timeline through a read-only API.
+    """
+
+    try:
+
+        incidents = _build_correlated_incidents()
+
+        normalized_id = str(
+            incident_id
+        ).strip().upper()
+
+        for incident in incidents:
+
+            if incident["incident_id"].upper() != normalized_id:
+                continue
+
+            graph = build_attack_graph(
+                incident
+            )
+
+            timeline = build_incident_timeline(
+                incident,
+                graph=graph
+            )
+
+            return jsonify({
+                "status": "success",
+                "incident_id": incident["incident_id"],
+                "investigation": {
+                    "timeline": timeline.to_dict(),
+                    "graph": graph.to_dict()
+                }
+            })
+
+        return jsonify({
+            "status": "error",
+            "message": "Security incident not found.",
+            "incident_id": incident_id
+        }), 404
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": "Failed to retrieve incident investigation.",
             "error": str(e)
         }), 500
 
