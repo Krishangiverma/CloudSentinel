@@ -1,5 +1,6 @@
 """Day 72: Validate CloudSentinel investigation context."""
 
+from math import isfinite
 from numbers import Real
 from typing import Any, Dict, List
 
@@ -71,17 +72,32 @@ def validate_investigation_context(context: Any) -> List[str]:
     risk = context["risk"]
     for field in ("max_score", "average_score"):
         value = risk.get(field)
-        if (
-            not isinstance(value, Real)
-            or isinstance(value, bool)
-        ):
+
+        if not isinstance(value, Real) or isinstance(value, bool):
             errors.append(f"risk.{field} must be numeric.")
+            continue
+
+        if not isfinite(value):
+            errors.append(f"risk.{field} must be finite.")
+        elif not 0 <= value <= 100:
+            errors.append(f"risk.{field} must be between 0 and 100.")
 
     if not isinstance(risk.get("risk_level"), str):
         errors.append("risk.risk_level must be a string.")
 
-    if not isinstance(risk.get("event_scores"), list):
+    event_scores = risk.get("event_scores")
+    if not isinstance(event_scores, list):
         errors.append("risk.event_scores must be a list.")
+    else:
+        for index, score in enumerate(event_scores):
+            field = f"risk.event_scores[{index}]"
+
+            if not isinstance(score, Real) or isinstance(score, bool):
+                errors.append(f"{field} must be numeric.")
+            elif not isfinite(score):
+                errors.append(f"{field} must be finite.")
+            elif not 0 <= score <= 100:
+                errors.append(f"{field} must be between 0 and 100.")
 
     if not isinstance(risk.get("level_counts"), dict):
         errors.append("risk.level_counts must be a dictionary.")
