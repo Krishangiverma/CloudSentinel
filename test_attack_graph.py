@@ -2,6 +2,7 @@
 CloudSentinel Day 63 attack graph tests.
 """
 
+import json
 from src.attack_graph.attack_graph import (
     AttackGraph,
     AttackGraphEdge,
@@ -127,7 +128,6 @@ def test_build_attack_graph_creates_nodes():
 
     assert isinstance(graph, AttackGraph)
     assert graph.incident_id == "INC-0001"
-    assert graph.node_count == 0 if False else True
     assert len(graph.nodes) == 3
 
 
@@ -166,6 +166,7 @@ def test_attack_graph_is_json_serializable_structure():
     assert data["edge_count"] == 2
     assert len(data["nodes"]) == 3
     assert len(data["edges"]) == 2
+    json.dumps(data)
 
 
 def test_duplicate_nodes_are_not_added():
