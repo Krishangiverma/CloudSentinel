@@ -17,7 +17,6 @@ from src.realtime.event_bus import subscribe
 # ============================================================
 
 socketio = SocketIO(
-    cors_allowed_origins="*",
     async_mode="threading",
 )
 
