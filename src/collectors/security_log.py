@@ -13,19 +13,27 @@ LOG_PATH = Path("/var/log/auth.log")
 def read_security_logs():
     """
     Read security-related entries from Ubuntu auth.log.
+
+    Return an empty list when the log is missing or cannot be read.
+    Avoid printing exception messages that may contain sensitive details.
     """
-
-    if not LOG_PATH.exists():
-        print(f"Security log not found: {LOG_PATH}")
-        return []
-
     try:
+        if not LOG_PATH.exists():
+            print("Security log not found.")
+            return []
+
         with open(LOG_PATH, "r", errors="ignore") as file:
             return file.readlines()
 
     except PermissionError:
         print("Permission denied while reading auth.log.")
-        print("Try running the program with sudo.")
+        print("Check the permissions for the security log.")
+        return []
+
+    except OSError as exc:
+        print(
+            f"Security log read failed ({type(exc).__name__})."
+        )
         return []
 
 

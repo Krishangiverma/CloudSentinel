@@ -112,3 +112,40 @@ def test_failure_message_does_not_expose_raw_log_content(monkeypatch, capsys):
     assert "RuntimeError" in output
     assert secret_log not in output
     assert "1 security log events failed processing." in output
+
+
+def test_read_security_logs_handles_os_error(monkeypatch, capsys):
+    class FakePath:
+        def exists(self):
+            return True
+
+        def __str__(self):
+            return "/fake/auth.log"
+
+    def raise_os_error(*args, **kwargs):
+        raise OSError("simulated disk read failure")
+
+    monkeypatch.setattr(security_log, "LOG_PATH", FakePath())
+    monkeypatch.setattr("builtins.open", raise_os_error)
+
+    assert security_log.read_security_logs() == []
+    assert "OSError" in capsys.readouterr().out
+
+
+def test_read_security_logs_handles_path_check_error(monkeypatch, capsys):
+    class BrokenPath:
+        def exists(self):
+            raise OSError("simulated path check failure")
+
+        def __str__(self):
+            return "/fake/auth.log"
+
+    monkeypatch.setattr(security_log, "LOG_PATH", BrokenPath())
+
+    try:
+        result = security_log.read_security_logs()
+    except OSError:
+        result = "RAISED"
+
+    assert result == []
+    assert "OSError" in capsys.readouterr().out
