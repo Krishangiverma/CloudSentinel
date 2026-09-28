@@ -1,6 +1,6 @@
 """Convert CloudTrail-format records to CloudSentinel events."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import ipaddress
 
 from src.ingestion.normalizer import normalize_event
@@ -16,12 +16,21 @@ def normalize_cloudtrail_record(record):
         if not isinstance(record.get(field), str) or not record[field].strip():
             raise ValueError(f"Missing or invalid CloudTrail field: {field}")
 
+    timestamp_text = record["eventTime"].strip()
+    if timestamp_text.endswith(("Z", "z")):
+        timestamp_text = timestamp_text[:-1] + "+00:00"
+
     try:
-        timestamp = datetime.fromisoformat(
-            record["eventTime"].strip().replace("Z", "+00:00")
-        )
+        timestamp = datetime.fromisoformat(timestamp_text)
     except ValueError as error:
         raise ValueError("Invalid CloudTrail eventTime.") from error
+
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError(
+            "CloudTrail eventTime must include a timezone."
+        )
+
+    timestamp = timestamp.astimezone(timezone.utc)
 
     event_name = record["eventName"].strip()
     event_source = record["eventSource"].strip()
@@ -37,7 +46,9 @@ def normalize_cloudtrail_record(record):
         except ValueError as error:
             raise ValueError("Invalid CloudTrail sourceIPAddress.") from error
 
-    identity = record.get("userIdentity") or {}
+    identity = record.get("userIdentity", {})
+    if identity is None:
+        identity = {}
     if not isinstance(identity, dict):
         raise ValueError("CloudTrail userIdentity must be an object.")
 
