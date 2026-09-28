@@ -571,6 +571,101 @@
             color: #e2e8f0;
         }
 
+        /* =====================================================
+           ATTACK GRAPH
+           ===================================================== */
+
+        .attack-graph-container {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+            gap: 16px;
+        }
+
+        .attack-graph-nodes,
+        .attack-graph-relationships {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .attack-graph-node {
+            padding: 14px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 9px;
+        }
+
+        .attack-graph-node-header {
+            color: #f8fafc;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .attack-graph-node-id {
+            color: #94a3b8;
+            font-size: 12px;
+            margin-bottom: 10px;
+            word-break: break-word;
+        }
+
+        .attack-graph-node-meta {
+            color: #cbd5e1;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .attack-graph-relationships {
+            padding: 14px;
+            background: #0f172a;
+            border: 1px solid #1f2937;
+            border-radius: 9px;
+        }
+
+        .attack-graph-relationships h4 {
+            margin: 0 0 10px;
+            color: #e2e8f0;
+            font-size: 13px;
+        }
+
+        .attack-graph-edge {
+            padding: 10px;
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 7px;
+        }
+
+        .attack-graph-edge strong {
+            color: #f8fafc;
+            font-size: 12px;
+            word-break: break-word;
+        }
+
+        .attack-graph-arrow {
+            color: #64748b;
+            margin: 0 6px;
+        }
+
+        .attack-graph-edge-meta {
+            margin-top: 6px;
+            color: #93c5fd;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .attack-graph-edge-reasons {
+            margin-top: 5px;
+            color: #94a3b8;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 800px) {
+            .attack-graph-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .pattern-box {
             padding: 14px;
             background: #111827;
@@ -1598,7 +1693,34 @@
     }
 
 
-function renderInvestigation(incident) {
+function renderInvestigation(
+    incident,
+    investigation
+) {
+
+    const investigationData =
+        investigation || {};
+
+    const timelineData =
+        investigationData.timeline || {};
+
+    const graphData =
+        investigationData.graph || {};
+
+    const timelineEntries =
+        Array.isArray(timelineData.entries)
+            ? timelineData.entries
+            : [];
+
+    const graphNodes =
+        Array.isArray(graphData.nodes)
+            ? graphData.nodes
+            : [];
+
+    const graphEdges =
+        Array.isArray(graphData.edges)
+            ? graphData.edges
+            : [];
 
     const body =
         document.getElementById(
@@ -1654,9 +1776,13 @@ function renderInvestigation(incident) {
     // =========================================================
 
     const events =
-        Array.isArray(incident.events)
-            ? incident.events
-            : [];
+        timelineEntries.length
+            ? timelineEntries
+            : (
+                Array.isArray(incident.events)
+                    ? incident.events
+                    : []
+            );
 
     // =========================================================
     // ADVANCED INCIDENT DATA
@@ -1708,7 +1834,17 @@ function renderInvestigation(incident) {
                         event.threat_intel_score !== null &&
                         event.threat_intel_score !== undefined
                             ? event.threat_intel_score
-                            : 0;
+                            : "—";
+
+                    const attackStage =
+                        event.attack_stage ||
+                        "UNKNOWN";
+
+                    const elapsedSeconds =
+                        event.elapsed_seconds !== null &&
+                        event.elapsed_seconds !== undefined
+                            ? event.elapsed_seconds
+                            : null;
 
                     return `
                         <div
@@ -1751,6 +1887,32 @@ function renderInvestigation(incident) {
                                     )}
                                 </div>
 
+                                <div
+                                    class="timeline-message"
+                                    style="margin-top: 4px;"
+                                >
+                                    Attack Stage:
+                                    ${escapeHtml(
+                                        attackStage
+                                    )}
+                                </div>
+
+                                ${
+                                    elapsedSeconds !== null
+                                        ? `
+                                            <div
+                                                class="timeline-message"
+                                                style="margin-top: 4px;"
+                                            >
+                                                Elapsed:
+                                                ${escapeHtml(
+                                                    elapsedSeconds
+                                                )}s
+                                            </div>
+                                        `
+                                        : ""
+                                }
+
                             </div>
 
                             <div class="timeline-risk">
@@ -1775,6 +1937,133 @@ function renderInvestigation(incident) {
             : `
                 <div class="investigation-error">
                     No correlated events available.
+                </div>
+            `;
+
+    // =========================================================
+    // ATTACK GRAPH
+    // =========================================================
+
+    const graphNodesHtml =
+        graphNodes.length
+            ? graphNodes.map(
+                node => `
+                    <div class="attack-graph-node">
+
+                        <div class="attack-graph-node-header">
+                            ${escapeHtml(
+                                node.event_type ||
+                                "UNKNOWN"
+                            )}
+                        </div>
+
+                        <div class="attack-graph-node-id">
+                            ${escapeHtml(
+                                node.event_id ??
+                                node.node_id ??
+                                "UNKNOWN"
+                            )}
+                        </div>
+
+                        <div class="attack-graph-node-meta">
+                            Stage:
+                            ${escapeHtml(
+                                node.attack_stage ||
+                                "UNKNOWN"
+                            )}
+                        </div>
+
+                        <div class="attack-graph-node-meta">
+                            Risk:
+                            ${escapeHtml(
+                                node.risk_score ?? 0
+                            )}/100
+                            ·
+                            ${escapeHtml(
+                                node.risk_level ||
+                                "LOW"
+                            )}
+                        </div>
+
+                        <div class="attack-graph-node-meta">
+                            Source:
+                            ${escapeHtml(
+                                node.source_ip ||
+                                "N/A"
+                            )}
+                        </div>
+
+                        <div class="attack-graph-node-meta">
+                            User:
+                            ${escapeHtml(
+                                node.user ||
+                                "N/A"
+                            )}
+                        </div>
+
+                    </div>
+                `
+            ).join("")
+            : `
+                <div class="investigation-error">
+                    No attack graph nodes available.
+                </div>
+            `;
+
+    const graphEdgesHtml =
+        graphEdges.length
+            ? graphEdges.map(
+                edge => `
+                    <div class="attack-graph-edge">
+
+                        <div>
+                            <strong>
+                                ${escapeHtml(
+                                    edge.source_node_id ||
+                                    "UNKNOWN"
+                                )}
+                            </strong>
+
+                            <span class="attack-graph-arrow">
+                                →
+                            </span>
+
+                            <strong>
+                                ${escapeHtml(
+                                    edge.target_node_id ||
+                                    "UNKNOWN"
+                                )}
+                            </strong>
+                        </div>
+
+                        <div class="attack-graph-edge-meta">
+                            ${escapeHtml(
+                                edge.relationship ||
+                                "RELATED"
+                            )}
+                        </div>
+
+                        ${
+                            Array.isArray(edge.reasons) &&
+                            edge.reasons.length
+                                ? `
+                                    <div class="attack-graph-edge-reasons">
+                                        ${escapeHtml(
+                                            edge.reasons.join(
+                                                " • "
+                                            )
+                                        )}
+                                    </div>
+                                `
+                                : ""
+                        }
+
+                    </div>
+                `
+            ).join("")
+            : `
+                <div class="investigation-error">
+                    No attack graph relationships available.
                 </div>
             `;
 
@@ -2021,6 +2310,39 @@ function renderInvestigation(incident) {
 
         </div>
 
+
+        <div class="investigation-section">
+
+            <h3>
+                Attack Graph
+                (${escapeHtml(
+                    graphData.node_count ?? graphNodes.length
+                )} nodes ·
+                ${escapeHtml(
+                    graphData.edge_count ?? graphEdges.length
+                )} relationships)
+            </h3>
+
+            <div class="attack-graph-container">
+
+                <div class="attack-graph-nodes">
+                    ${graphNodesHtml}
+                </div>
+
+                <div class="attack-graph-relationships">
+
+                    <h4>
+                        Relationships
+                    </h4>
+
+                    ${graphEdgesHtml}
+
+                </div>
+
+            </div>
+
+        </div>
+
     `;
 }
 
@@ -2076,7 +2398,7 @@ function renderInvestigation(incident) {
                 await fetch(
                     `/api/incidents/${encodeURIComponent(
                         incidentId
-                    )}`
+                    )}/investigation`
                 );
 
             const data =
@@ -2092,7 +2414,8 @@ function renderInvestigation(incident) {
             }
 
             renderInvestigation(
-                data.incident
+                data.incident,
+                data.investigation
             );
 
         }

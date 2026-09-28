@@ -1661,6 +1661,7 @@ def get_incident_investigation(incident_id):
             return jsonify({
                 "status": "success",
                 "incident_id": incident["incident_id"],
+                "incident": incident,
                 "investigation": {
                     "timeline": timeline.to_dict(),
                     "graph": graph.to_dict()
