@@ -110,3 +110,31 @@ def test_worker_can_restart_after_stop(monkeypatch):
     assert processed == ["before-restart", "after-restart"]
     assert worker.event_queue.unfinished_tasks == 0
     assert not worker._thread.is_alive()
+
+
+def test_worker_processes_event_queued_before_start(monkeypatch):
+    processed = []
+
+    def fake_ingest(event):
+        processed.append(event)
+        return event
+
+    monkeypatch.setattr(event_worker, "ingest_event", fake_ingest)
+
+    worker = event_worker.EventWorker()
+
+    worker.submit("queued-before-start")
+
+    assert processed == []
+    assert worker.event_queue.qsize() == 1
+
+    worker.start()
+
+    try:
+        worker.event_queue.join()
+    finally:
+        worker.stop()
+
+    assert processed == ["queued-before-start"]
+    assert worker.event_queue.unfinished_tasks == 0
+    assert not worker._thread.is_alive()
