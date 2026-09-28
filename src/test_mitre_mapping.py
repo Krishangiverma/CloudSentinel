@@ -200,3 +200,76 @@ def test_subtechnique_name_requires_subtechnique_id():
             evidence=["sudo activity detected"],
             confidence=0.80,
         )
+
+
+# ============================================================
+# DAY 100: MAPPING STATUS VALIDATION
+# ============================================================
+
+def test_mapping_status_defaults_to_candidate():
+    mapping = MITREMapping(
+        tactic="Credential Access",
+        technique_id="T1110",
+        technique="Brute Force",
+    )
+
+    assert mapping.mapping_status == "candidate"
+    assert mapping.to_dict()["mapping_status"] == "candidate"
+
+
+def test_mapping_status_accepts_supported():
+    mapping = MITREMapping(
+        tactic="Credential Access",
+        technique_id="T1110",
+        technique="Brute Force",
+        mapping_status="supported",
+    )
+
+    assert mapping.mapping_status == "supported"
+    assert mapping.to_dict()["mapping_status"] == "supported"
+
+
+def test_mapping_status_normalizes_case_and_whitespace():
+    mapping = MITREMapping(
+        tactic="Credential Access",
+        technique_id="T1110",
+        technique="Brute Force",
+        mapping_status=" SUPPORTED ",
+    )
+
+    assert mapping.mapping_status == "supported"
+
+
+def test_mapping_status_rejects_invalid_value():
+    import pytest
+
+    with pytest.raises(ValueError, match="mapping_status"):
+        MITREMapping(
+            tactic="Credential Access",
+            technique_id="T1110",
+            technique="Brute Force",
+            mapping_status="confirmed_attack",
+        )
+
+
+def test_mapping_status_rejects_non_string():
+    import pytest
+
+    with pytest.raises(TypeError, match="mapping_status"):
+        MITREMapping(
+            tactic="Credential Access",
+            technique_id="T1110",
+            technique="Brute Force",
+            mapping_status=None,
+        )
+
+
+def test_factory_preserves_mapping_status():
+    mapping = MITREMapping.from_technique_id(
+        tactic="Credential Access",
+        technique_id="T1110",
+        technique="Brute Force",
+        mapping_status="supported",
+    )
+
+    assert mapping.mapping_status == "supported"

@@ -60,6 +60,7 @@ class MITREMapping:
     evidence: List[str] = field(default_factory=list)
 
     confidence: float = 0.0
+    mapping_status: str = "candidate"
 
     def __post_init__(self) -> None:
         """
@@ -211,6 +212,22 @@ class MITREMapping:
         self.evidence = normalized_evidence
 
         # ----------------------------------------------------
+        # MAPPING STATUS
+        # ----------------------------------------------------
+
+        allowed_statuses = {"candidate", "supported"}
+
+        if not isinstance(self.mapping_status, str):
+            raise TypeError("mapping_status must be a string")
+
+        self.mapping_status = self.mapping_status.strip().lower()
+
+        if self.mapping_status not in allowed_statuses:
+            raise ValueError(
+                "mapping_status must be 'candidate' or 'supported'"
+            )
+
+        # ----------------------------------------------------
         # CONFIDENCE
         # ----------------------------------------------------
 
@@ -253,6 +270,7 @@ class MITREMapping:
         subtechnique: Optional[str] = None,
         evidence: Optional[List[str]] = None,
         confidence: float = 0.0,
+        mapping_status: str = "candidate",
     ) -> "MITREMapping":
         """
         Build a mapping from either:
@@ -302,6 +320,7 @@ class MITREMapping:
             subtechnique=subtechnique,
             evidence=evidence or [],
             confidence=confidence,
+            mapping_status=mapping_status,
         )
 
     # ========================================================
@@ -322,4 +341,5 @@ class MITREMapping:
             "subtechnique": self.subtechnique,
             "evidence": list(self.evidence),
             "confidence": self.confidence,
+            "mapping_status": self.mapping_status,
         }

@@ -168,3 +168,54 @@ def test_mapping_evidence_is_nonempty_and_rule_specific():
             isinstance(item, str) and item.strip()
             for item in mapping.evidence
         )
+
+
+# ============================================================
+# DAY 100: MITRE SEMANTIC ACCURACY AUDIT
+# ============================================================
+
+def test_day100_flags_mappings_that_need_semantic_review():
+    rules = _load_rules()
+    mappings = {
+        rule.name: map_detection_to_mitre(rule)
+        for rule in rules
+    }
+
+    # These current mappings need review because the observed
+    # log event alone does not establish the ATT&CK behavior.
+    assert mappings["ssh_invalid_user"].technique_id == "T1078"
+    assert mappings["session_opened"].technique_id == "T1078"
+    assert mappings["session_closed"].technique_id == "T1078"
+    assert mappings["sudo_activity"].subtechnique_id == "T1548.003"
+    assert mappings["cron_activity"].technique_id == "T1053"
+
+
+# ============================================================
+# DAY 100: EVIDENCE-AWARE MAPPING STATUS
+# ============================================================
+
+def test_day100_brute_force_mapping_status_remains_candidate():
+    rules = _load_rules()
+    rule = next(r for r in rules if r.name == "brute_force")
+
+    mapping = map_detection_to_mitre(rule)
+
+    assert mapping.mapping_status == "candidate"
+    assert mapping.to_dict()["mapping_status"] == "candidate"
+
+
+def test_day100_generic_activity_mappings_remain_candidates():
+    rules = _load_rules()
+    rules_by_name = {rule.name: rule for rule in rules}
+
+    generic_rule_names = (
+        "ssh_invalid_user",
+        "sudo_activity",
+        "session_opened",
+        "session_closed",
+        "cron_activity",
+    )
+
+    for name in generic_rule_names:
+        mapping = map_detection_to_mitre(rules_by_name[name])
+        assert mapping.mapping_status == "candidate", name

@@ -103,6 +103,15 @@ RULE_MAPPING_CONFIDENCE = {
 }
 
 
+# Status describes how strongly the rule evidence supports
+# the ATT&CK mapping; it does not assert that an attack occurred.
+RULE_MAPPING_STATUS = {
+    # The current rule matches explicit text; its threshold
+    # alone does not prove repeated authentication failures.
+    "brute_force": "candidate",
+}
+
+
 # ============================================================
 # SUB-TECHNIQUE HELPERS
 # ============================================================
@@ -214,6 +223,10 @@ def map_detection_to_mitre(
         confidence=RULE_MAPPING_CONFIDENCE.get(
             rule.name,
             DEFAULT_CONFIDENCE,
+        ),
+        mapping_status=RULE_MAPPING_STATUS.get(
+            rule.name,
+            "candidate",
         ),
     )
 
