@@ -83,10 +83,24 @@ DETECTION_EVIDENCE: Dict[str, List[str]] = {
 
 
 # ============================================================
-# DEFAULT CONFIDENCE
+# EVIDENCE-AWARE MAPPING CONFIDENCE
 # ============================================================
 
-DEFAULT_CONFIDENCE = 0.80
+# These scores describe confidence in the rule-to-technique
+# association, not the probability that an attack occurred.
+# Generic log matches receive more conservative scores.
+DEFAULT_CONFIDENCE = 0.70
+
+RULE_MAPPING_CONFIDENCE = {
+    "brute_force": 0.90,
+    "ssh_failed_password": 0.75,
+    "ssh_invalid_user": 0.55,
+    "authentication_failure": 0.65,
+    "sudo_activity": 0.50,
+    "session_opened": 0.40,
+    "session_closed": 0.35,
+    "cron_activity": 0.45,
+}
 
 
 # ============================================================
@@ -197,7 +211,10 @@ def map_detection_to_mitre(
         subtechnique_id=subtechnique_id,
         subtechnique=subtechnique_name,
         evidence=evidence,
-        confidence=DEFAULT_CONFIDENCE,
+        confidence=RULE_MAPPING_CONFIDENCE.get(
+            rule.name,
+            DEFAULT_CONFIDENCE,
+        ),
     )
 
 

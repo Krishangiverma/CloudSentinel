@@ -45,7 +45,7 @@ def test_detection_maps_to_mitre():
     assert mapping.technique == "Brute Force"
     assert mapping.tactic == "Credential Access"
     assert mapping.subtechnique_id is None
-    assert mapping.confidence == 0.80
+    assert mapping.confidence == 0.90
 
 
 # ============================================================
@@ -131,3 +131,40 @@ def test_unknown_detection_returns_none():
     )
 
     assert result is None
+
+
+# ============================================================
+# DAY 99: EVIDENCE-AWARE MAPPING REGRESSION TESTS
+# ============================================================
+
+def test_mapping_confidence_reflects_rule_evidence():
+    rules = _load_rules()
+
+    brute_force = next(
+        rule for rule in rules
+        if rule.name == "brute_force"
+    )
+    sudo_activity = next(
+        rule for rule in rules
+        if rule.name == "sudo_activity"
+    )
+
+    brute_mapping = map_detection_to_mitre(brute_force)
+    sudo_mapping = map_detection_to_mitre(sudo_activity)
+
+    # Explicit brute-force evidence should have higher
+    # mapping confidence than a generic sudo log match.
+    assert brute_mapping.confidence > sudo_mapping.confidence
+
+
+def test_mapping_evidence_is_nonempty_and_rule_specific():
+    rules = _load_rules()
+
+    for rule in rules:
+        mapping = map_detection_to_mitre(rule)
+
+        assert mapping.evidence
+        assert all(
+            isinstance(item, str) and item.strip()
+            for item in mapping.evidence
+        )
