@@ -1329,6 +1329,39 @@
 
     const MAX_LIVE_ALERTS = 20;
 
+    // Remember recently processed server-assigned IDs to prevent
+    // duplicate Socket.IO deliveries from creating duplicate cards.
+    const MAX_SEEN_EVENT_IDS = 500;
+    const seenLiveEventIds = new Set();
+
+    function rememberLiveEventId(event) {
+        if (
+            !event ||
+            event.id === null ||
+            event.id === undefined ||
+            String(event.id).trim() === ""
+        ) {
+            // Without a stable ID, don't guess that two events are the same.
+            return true;
+        }
+
+        const id = String(event.id);
+
+        if (seenLiveEventIds.has(id)) {
+            return false;
+        }
+
+        seenLiveEventIds.add(id);
+
+        if (seenLiveEventIds.size > MAX_SEEN_EVENT_IDS) {
+            const oldestId = seenLiveEventIds.values().next().value;
+            seenLiveEventIds.delete(oldestId);
+        }
+
+        return true;
+    }
+
+
 
     // =========================================================
     // HELPERS
@@ -3399,18 +3432,22 @@ function renderInvestigation(
                 event
             );
 
+            // Deduplicate only when the server supplies a stable ID.
+            // ID-less events are processed rather than risk merging
+            // distinct, legitimate security events.
+            if (!rememberLiveEventId(event)) {
+                console.log(
+                    "[WebSocket] Duplicate event ignored:",
+                    event.id
+                );
+                return;
+            }
 
             // Immediately show the new alert.
-            addLiveAlert(
-                event
-            );
-
+            addLiveAlert(event);
 
             // Update live counters.
-            updateLiveCounters(
-                event
-            );
-
+            updateLiveCounters(event);
 
             // Synchronize REST-backed dashboard data.
             loadEvents();
