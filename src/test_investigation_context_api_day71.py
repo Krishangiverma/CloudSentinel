@@ -26,21 +26,7 @@ def sample_incident():
 
 def test_context_endpoint_returns_structured_context(monkeypatch):
     incident = sample_incident()
-    expected_context = {
-        "schema_version": "1.0",
-        "incident": {
-            "incident_id": "INC-DAY71-001",
-            "event_count": 1,
-        },
-        "risk": {"max_score": 75},
-        "events": incident["events"],
-        "iocs": {"summary": {}, "indicators": []},
-        "detections": [],
-        "mitre_attack": [],
-        "attack_chain": {},
-        "attack_graph": {"nodes": [], "edges": []},
-        "timeline": {"events": []},
-    }
+    expected_context = app_module.build_investigation_context(incident)
 
     monkeypatch.setattr(
         app_module,

@@ -53,6 +53,7 @@ from src.api.ioc_investigation import ioc_investigation_bp
 from src.attack_graph.attack_graph import build_attack_graph
 from src.timeline.incident_timeline import build_incident_timeline
 from src.ai.investigation_context import build_investigation_context
+from src.ai.investigation_context_validator import validate_investigation_context
 
 
 # ============================================================
@@ -1708,6 +1709,15 @@ def get_incident_context(incident_id):
                 continue
 
             context = build_investigation_context(incident)
+            validation_errors = validate_investigation_context(context)
+
+            if validation_errors:
+                return jsonify({
+                    "status": "error",
+                    "message": "Generated incident context failed validation.",
+                    "incident_id": incident.get("incident_id"),
+                    "validation_errors": validation_errors,
+                }), 500
 
             return jsonify({
                 "status": "success",
