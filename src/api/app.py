@@ -119,7 +119,7 @@ def enforce_authentication_and_csrf():
     endpoint = request.endpoint
 
     # Public endpoints required for login, static assets and health checks.
-    if endpoint in {"static", "auth.login", "health_check"}:
+    if endpoint in {"static", "auth.login", "health_check", "public_demo"}:
         return None
 
     # Health is intentionally public; do not expose other application data.
@@ -187,6 +187,12 @@ def dashboard():
 
 
 # ============================================================
+@app.route("/demo", methods=["GET"])
+def public_demo():
+    """Serve a public portfolio demo containing synthetic security data."""
+    return render_template("public_demo.html")
+
+
 # HOME / ROOT ENDPOINT
 # ============================================================
 
