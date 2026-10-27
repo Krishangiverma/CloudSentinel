@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from flask_socketio import SocketIO, emit
 
+from src.api.auth import authentication_configuration_ready, is_authenticated
 from src.realtime.event_bus import subscribe
 
 
@@ -235,8 +236,12 @@ subscribe(handle_realtime_event)
 @socketio.on("connect")
 def handle_connect():
     """
-    Handle a new SOC dashboard WebSocket connection.
+    Accept dashboard connections only for authenticated sessions.
     """
+
+    if not authentication_configuration_ready() or not is_authenticated():
+        print("[WebSocket] Rejected unauthenticated dashboard client.")
+        return False
 
     print(
         "[WebSocket] Dashboard client connected."

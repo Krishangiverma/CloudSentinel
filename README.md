@@ -169,19 +169,32 @@ python -m pip check
 
 ## Configuration
 
-An `.env.example` template is provided for optional threat-intelligence settings.
-Copy it only if you need to customize local configuration:
+The `.env.example` file documents optional integration settings and required dashboard authentication variables. The application reads authentication settings from its process environment; creating a `.env` file alone does not automatically load those variables.
+
+Required authentication settings:
+
+- `CLOUDSENTINEL_USERNAME`: dashboard login username.
+- `CLOUDSENTINEL_PASSWORD_HASH`: Werkzeug password hash, never a plaintext password.
+- `CLOUDSENTINEL_SECRET_KEY`: randomly generated Flask session signing key of at least 32 characters.
+- `CLOUDSENTINEL_COOKIE_SECURE`: set to `true` for HTTPS deployments; use `false` only for local HTTP testing.
+- `CLOUDSENTINEL_CSRF_ENABLED`: optional application setting; CSRF validation is enabled by default.
+
+Generate a password hash interactively:
 
 ```bash
-cp .env.example .env
+.venv/bin/python -c 'from getpass import getpass; from werkzeug.security import generate_password_hash; print(generate_password_hash(getpass("Dashboard password: ")))'
 ```
 
-Set `OTX_API_KEY` in `.env` only if you are using the relevant OTX integration.
-Never commit `.env`, API tokens, credentials, or other secrets.
+Generate a session signing key:
 
-The example file documents `OTX_BASE_URL` as an optional override. Review the
-specific integration's configuration handling before relying on any environment
-variable.
+```bash
+.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))'
+```
+
+Set the username, generated password hash, and signing key as environment variables before starting the application. Never commit real credentials, generated keys, API tokens, or `.env` files.
+
+`OTX_API_KEY` is optional for the relevant threat-intelligence integration. Review the integration code before relying on optional environment variables.
+
 
 ## Run Locally
 

@@ -2,6 +2,38 @@ from datetime import date, datetime, timezone
 
 import src.api.websocket as ws
 from src.api.app import app
+from src.api import auth
+
+
+def _configure_websocket_auth(monkeypatch):
+    monkeypatch.setenv(auth.AUTH_USERNAME_ENV, "soc-operator")
+    monkeypatch.setenv(auth.AUTH_PASSWORD_HASH_ENV, "test-placeholder-hash")
+    monkeypatch.setenv(
+        auth.AUTH_SECRET_KEY_ENV,
+        "test-secret-key-that-is-long-enough-for-tests",
+    )
+    app.config["SECRET_KEY"] = "test-only-signing-key"
+
+
+def _authenticated_socket_client(monkeypatch):
+    _configure_websocket_auth(monkeypatch)
+
+    flask_client = app.test_client()
+    with flask_client.session_transaction() as current_session:
+        current_session[auth.SESSION_USER_KEY] = "soc-operator"
+        current_session[auth.CSRF_SESSION_KEY] = "test-csrf-token"
+
+    return ws.socketio.test_client(
+        app,
+        flask_test_client=flask_client,
+    )
+
+
+def test_websocket_rejects_unauthenticated_client(monkeypatch):
+    _configure_websocket_auth(monkeypatch)
+
+    client = ws.socketio.test_client(app)
+    assert not client.is_connected()
 
 
 def test_serialize_value_handles_nested_values():
@@ -78,8 +110,8 @@ def test_build_event_payload_supports_object():
     assert result["ip_address"] == "198.51.100.5"
 
 
-def test_websocket_connect_emits_connection_status():
-    client = ws.socketio.test_client(app)
+def test_websocket_connect_emits_connection_status(monkeypatch):
+    client = _authenticated_socket_client(monkeypatch)
 
     try:
         assert client.is_connected()
@@ -143,9 +175,9 @@ def test_broadcast_event_delegates_to_handler(monkeypatch):
     assert calls == [event]
 
 
-def test_multiple_websocket_clients_connect_successfully():
-    first_client = ws.socketio.test_client(app)
-    second_client = ws.socketio.test_client(app)
+def test_multiple_websocket_clients_connect_successfully(monkeypatch):
+    first_client = _authenticated_socket_client(monkeypatch)
+    second_client = _authenticated_socket_client(monkeypatch)
 
     try:
         assert first_client.is_connected()
@@ -165,8 +197,8 @@ def test_multiple_websocket_clients_connect_successfully():
         second_client.disconnect()
 
 
-def test_websocket_disconnect_completes(capsys):
-    client = ws.socketio.test_client(app)
+def test_websocket_disconnect_completes(capsys, monkeypatch):
+    client = _authenticated_socket_client(monkeypatch)
 
     assert client.is_connected()
 
@@ -176,15 +208,15 @@ def test_websocket_disconnect_completes(capsys):
     assert "Dashboard client disconnected." in capsys.readouterr().out
 
 
-def test_new_client_receives_connection_status_after_previous_disconnect():
-    first_client = ws.socketio.test_client(app)
+def test_new_client_receives_connection_status_after_previous_disconnect(monkeypatch):
+    first_client = _authenticated_socket_client(monkeypatch)
 
     try:
         assert first_client.is_connected()
     finally:
         first_client.disconnect()
 
-    second_client = ws.socketio.test_client(app)
+    second_client = _authenticated_socket_client(monkeypatch)
 
     try:
         assert second_client.is_connected()

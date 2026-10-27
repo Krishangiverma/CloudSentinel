@@ -2,7 +2,7 @@ import sys
 import json
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request, render_template
+from flask import Flask, Response, current_app, jsonify, request, render_template
 
 from src.reports.incident_report import generate_incident_report
 
@@ -41,6 +41,18 @@ from src.analyzers.attack_correlator import (
     transition_incident_status,
 )
 from src.api.websocket import socketio
+from src.api.auth import (
+    authentication_configuration_ready,
+    authentication_required_response,
+    get_csrf_token,
+    csrf_enabled,
+    csrf_rejected_response,
+    is_authenticated,
+    secret_key_from_environment,
+    secure_cookie_setting,
+    validate_csrf_token,
+)
+from src.api.auth_routes import auth_bp
 from src.ingestion import ingest_event
 from src.rules.rule_loader import load_rules_from_yaml
 from src.mitre.registry import (
@@ -68,8 +80,20 @@ app = Flask(
     template_folder=str(PROJECT_ROOT / "templates")
 )
 
+# Day 119: Security configuration comes from deployment environment.
+# Never use a hardcoded or generated production signing key.
+app.config.update(
+    SECRET_KEY=secret_key_from_environment(),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=secure_cookie_setting(),
+)
+
 # Initialize WebSocket infrastructure
 socketio.init_app(app)
+
+# Authentication routes
+app.register_blueprint(auth_bp)
 
 # Day 60 IOC Investigation API
 app.register_blueprint(
@@ -84,6 +108,63 @@ app.register_blueprint(
 app.config["JSON_SORT_KEYS"] = False
 
 
+@app.before_request
+def enforce_authentication_and_csrf():
+    """Protect application routes and state-changing requests."""
+    endpoint = request.endpoint
+
+    # Public endpoints required for login, static assets and health checks.
+    if endpoint in {"static", "auth.login", "health_check"}:
+        return None
+
+    # Health is intentionally public; do not expose other application data.
+    if not authentication_configuration_ready():
+        current_app.logger.error(
+            "CloudSentinel authentication configuration is incomplete."
+        )
+        return jsonify({
+            "status": "error",
+            "message": "Authentication is not configured.",
+        }), 503
+
+    if endpoint == "auth.logout":
+        # The logout route validates its submitted form token itself.
+        pass
+    elif not is_authenticated():
+        return authentication_required_response()
+
+    if (
+        csrf_enabled()
+        and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and endpoint != "auth.logout"
+        and not validate_csrf_token(
+            request.form.get("csrf_token")
+            or (
+                (request.get_json(silent=True) or {}).get("csrf_token")
+                if request.is_json
+                else None
+            )
+            or request.headers.get("X-CSRF-Token")
+        )
+    ):
+        return csrf_rejected_response()
+
+    return None
+
+
+@app.after_request
+def add_security_headers(response):
+    """Apply baseline browser security headers."""
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+
+    if request.path != "/api/health":
+        response.headers.setdefault("Cache-Control", "no-store")
+
+    return response
+
+
 # ============================================================
 # DASHBOARD
 # ============================================================
@@ -94,7 +175,10 @@ def dashboard():
     Serve the CloudSentinel security dashboard.
     """
 
-    return render_template("dashboard.html")
+    return render_template(
+        "dashboard.html",
+        csrf_token=get_csrf_token(),
+    )
 
 
 # ============================================================
