@@ -19,6 +19,11 @@ from src.reports.incident_report import generate_incident_report
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+from dotenv import load_dotenv
+
+# Load local development/deployment environment before importing auth modules.
+load_dotenv(PROJECT_ROOT / ".env")
+
 # Add project root to Python path
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
